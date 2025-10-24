@@ -1,0 +1,25 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Minimal DDB helper layer (nodejs/ layout)
+Resources:
+  DDBLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: ddb-layer
+      Description: Minimal DDB helper (PoC)
+      ContentUri: DDBLayer
+      CompatibleRuntimes:
+      - nodejs22.x
+      LicenseInfo: MIT
+    Metadata:
+      BuildMethod: nodejs22.x
+      SamResourceId: DDBLayer
+  DDBLayerParam:
+    Type: AWS::SSM::Parameter
+    DependsOn: DDBLayer
+    Properties:
+      Name: /cogira/layers/ddb
+      Type: String
+      Description: ARN for the DDB Lambda Layer
+      Value:
+        Ref: DDBLayer

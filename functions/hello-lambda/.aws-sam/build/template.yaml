@@ -1,0 +1,39 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Minimal hello-lambda function with TypeScript and esbuild
+Parameters:
+  DDBLayerArn:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /cogira/layers/ddb
+Globals:
+  Function:
+    Runtime: nodejs22.x
+    MemorySize: 128
+    Timeout: 5
+    CodeUri: ./src/
+    Layers:
+    - Ref: DDBLayerArn
+Resources:
+  HelloLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: index.handler
+      Events:
+        HelloApi:
+          Type: HttpApi
+          Properties:
+            Path: /hello-lambda
+            Method: GET
+      CodeUri: HelloLambda
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints:
+        - index.ts
+        Format: esm
+        Minify: true
+        OutExtension:
+        - .js=.mjs
+        Sourcemap: false
+        Target: es2020
+      SamResourceId: HelloLambda

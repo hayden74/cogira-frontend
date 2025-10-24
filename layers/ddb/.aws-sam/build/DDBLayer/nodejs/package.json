@@ -1,0 +1,6 @@
+{
+  "name": "ddb-layer",
+  "version": "1.0.0",
+  "description": "Minimal DDB helper layer (PoC)",
+  "type": "module"
+}
