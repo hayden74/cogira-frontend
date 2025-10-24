@@ -35,17 +35,21 @@ jobs:
           role-to-assume: ${{ env.ROLE_ARN }}
           aws-region: ${{ env.REGION }}
 
-      - name: Install toolchain
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-      - run: |
+          node-version: 22
+
+      - name: Install toolchain
+        run: |
           python3 -V
           pip install --upgrade pip
           pip install aws-sam-cli
+          npm i -g esbuild
           sam --version
           node -v
           npm -v
+          esbuild --version
           git --version
           aws --version
 
