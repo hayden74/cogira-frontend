@@ -17,7 +17,7 @@ permissions:
 env:
   ENV: dev
   REGION: us-east-1
-  ROLE_ARN: arn:aws:iam::637423340093:role/cogira-frontend-github-deploy-role
+  ROLE_ARN: arn:aws:iam::198484116352:role/cogira-frontend-github-deploy-role
 
 jobs:
   build-deploy:

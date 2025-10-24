@@ -6,7 +6,6 @@ export const hello = async (
   return {
     statusCode: 200,
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message: "hello world" }),
+    body: JSON.stringify({ message: "hello world 1" }),
   };
 };
-
