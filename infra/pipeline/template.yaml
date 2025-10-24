@@ -1,185 +1,114 @@
 AWSTemplateFormatVersion: 2010-09-09
 Transform: AWS::Serverless-2016-10-31
-Description: "PoC: CodeCommit (cogira-frontend) → CodeBuild (webhook) that runs Make targets for hello-lambda & ddb-layer"
+Description: "GitHub OIDC + Deploy Role + Artifacts bucket for cogira-frontend PoC (fixed)"
 
 Parameters:
-  RepoName:
+  RepoFullName:
     Type: String
-    Default: cogira-frontend
-    Description: "CodeCommit repository name to create"
+    Default: hayden74/cogira-frontend
+    Description: "GitHub repo in owner/name format"
   BranchName:
     Type: String
     Default: main
-    Description: "Branch to trigger builds from"
-  DeployEnv:
+  CreateOidcProvider:
     Type: String
-    Default: dev
-    AllowedValues: [dev, staging, prod]
-    Description: "Passed as ENV to Make; you have env/<ENV>.env"
-  AwsRegionForMake:
+    AllowedValues: ["true", "false"]
+    Default: "true"
+    Description: "Set false if your account already has a GitHub OIDC provider"
+  ExistingOidcProviderArn:
     Type: String
-    Default: us-east-1
-    Description: "Passed as REGION to Make"
-  BuildImage:
+    Default: ""
+    Description: "Existing OIDC provider ARN (used when CreateOidcProvider=false)"
+  ArtifactBucketName:
     Type: String
-    Default: aws/codebuild/standard:7.0
-  BuildComputeType:
-    Type: String
-    Default: BUILD_GENERAL1_SMALL
-    AllowedValues:
-      [BUILD_GENERAL1_SMALL, BUILD_GENERAL1_MEDIUM, BUILD_GENERAL1_LARGE]
+    Default: cogira-frontend-bucket
+    Description: "S3 bucket for SAM packaging/artifacts (must be globally unique)"
+
+Conditions:
+  CreateOIDC: !Equals [!Ref CreateOidcProvider, "true"]
+  UseExistingOIDC: !Not [!Equals [!Ref ExistingOidcProviderArn, ""]]
 
 Resources:
-  Repo:
-    Type: AWS::CodeCommit::Repository
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
     Properties:
-      RepositoryName: !Ref RepoName
-      RepositoryDescription: "Cogira PoC (hello-lambda + ddb-layer)"
+      BucketName: !Ref ArtifactBucketName
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration: { Status: Enabled }
       Tags:
         - Key: Name
-          Value: !Ref RepoName
+          Value: cogira-frontend-artifacts
 
-  # For PoC simplicity: give CodeBuild admin so CFN can create whatever your SAM stacks need.
-  CodeBuildRole:
+  ArtifactBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ArtifactBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !Sub "${ArtifactBucket.Arn}"
+              - !Sub "${ArtifactBucket.Arn}/*"
+            Condition:
+              Bool: { "aws:SecureTransport": false }
+
+  GitHubOIDCProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: CreateOIDC
+    Properties:
+      Url: "https://token.actions.githubusercontent.com"
+      ClientIdList: ["sts.amazonaws.com"]
+      ThumbprintList:
+        # Standard GitHub OIDC root thumbprint; adjust if your org requires otherwise
+        - "6938fd4d98bab03faadb97b34396831e3780aea1"
+
+  GitHubDeployRole:
     Type: AWS::IAM::Role
     Properties:
+      RoleName: cogira-frontend-github-deploy-role
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
           - Effect: Allow
-            Principal: { Service: codebuild.amazonaws.com }
-            Action: sts:AssumeRole
+            Action: "sts:AssumeRoleWithWebIdentity"
+            Principal:
+              Federated: !If
+                - CreateOIDC
+                - !Ref GitHubOIDCProvider
+                - !If
+                  - UseExistingOIDC
+                  - !Ref ExistingOidcProviderArn
+                  - "arn:aws:iam::000000000000:oidc-provider/token.actions.githubusercontent.com"
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: "sts.amazonaws.com"
+              StringLike:
+                token.actions.githubusercontent.com:sub: !Sub "repo:${RepoFullName}:ref:refs/heads/${BranchName}"
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AdministratorAccess
-
-  BuildProject:
-    Type: AWS::CodeBuild::Project
-    Properties:
-      Name: !Sub "cogira-poc-make-${RepoName}"
-      ServiceRole: !GetAtt CodeBuildRole.Arn
-      Source:
-        Type: CODECOMMIT
-        Location: !GetAtt Repo.CloneUrlHttp
-        GitCloneDepth: 25
-        BuildSpec: |
-          version: 0.2
-          env:
-            variables:
-              # Optional: override to force specific targets (e.g., "ddb-layer hello-lambda")
-              FORCE_TARGETS: ""
-          phases:
-            install:
-              runtime-versions:
-                nodejs: 20
-                python: 3.12
-              commands:
-                - pip install --upgrade pip
-                - pip install aws-sam-cli
-                - node -v && npm -v && sam --version
-                - git --version
-                - aws --version
-            pre_build:
-              commands: |
-                set -euo pipefail
-                echo "ENV=${ENV} REGION=${REGION} BRANCH=${BRANCH_NAME}"
-                echo "Current: $CODEBUILD_RESOLVED_SOURCE_VERSION"
-                echo "Prev: ${CODEBUILD_WEBHOOK_PREV_COMMIT:-<none>}"
-
-                # Create an AWS CLI profile matching your Makefiles' --profile $(ENV)
-                aws configure set profile.${ENV}.region "${REGION}"
-                aws configure set profile.${ENV}.aws_access_key_id "${AWS_ACCESS_KEY_ID}"
-                aws configure set profile.${ENV}.aws_secret_access_key "${AWS_SECRET_ACCESS_KEY}"
-                aws configure set profile.${ENV}.aws_session_token "${AWS_SESSION_TOKEN}"
-
-                # Determine changed files (or use FORCE_TARGETS)
-                if [ -n "${FORCE_TARGETS}" ]; then
-                  CHANGED=""
-                  echo "FORCE_TARGETS -> ${FORCE_TARGETS}"
-                else
-                  if [ -n "${CODEBUILD_WEBHOOK_PREV_COMMIT:-}" ]; then
-                    git fetch --depth=50 origin "refs/heads/${BRANCH_NAME}"
-                    CHANGED="$(git diff --name-only "${CODEBUILD_WEBHOOK_PREV_COMMIT}" "${CODEBUILD_RESOLVED_SOURCE_VERSION}" || true)"
-                  else
-                    CHANGED="$(git ls-files)"
-                  fi
-                fi
-                echo "Changed files:"
-                echo "${CHANGED}"
-
-                TARGETS=()
-                add_target() { local t="$1"; [[ " ${TARGETS[*]} " =~ " ${t} " ]] || TARGETS+=("${t}"); }
-
-                if [ -n "${FORCE_TARGETS}" ]; then
-                  for t in ${FORCE_TARGETS}; do add_target "$t"; done
-                else
-                  echo "${CHANGED}" | grep -qE '^layers/ddb/' && add_target "ddb-layer" || true
-                  echo "${CHANGED}" | grep -qE '^functions/hello-lambda/' && add_target "hello-lambda" || true
-                fi
-
-                # Ensure layer builds before function if both changed
-                ORDERED=()
-                for g in ddb-layer hello-lambda; do
-                  for i in "${!TARGETS[@]}"; do
-                    if [[ "${TARGETS[$i]}" == "$g" ]]; then ORDERED+=("$g"); unset 'TARGETS[i]'; fi
-                  done
-                done
-                TARGETS=()
-                for t in "${ORDERED[@]}"; do [ -n "${t:-}" ] && TARGETS+=("$t"); done
-
-                echo "Planned targets: ${TARGETS[*]:-<none>}"
-                echo "${TARGETS[*]:-}" > /tmp/targets.list
-
-            build:
-              commands: |
-                set -euo pipefail
-                TARGETS="$(cat /tmp/targets.list || true)"
-                if [ -z "${TARGETS}" ]; then
-                  echo "No matching targets. Nothing to deploy."
-                  exit 0
-                fi
-
-                # If you keep root package.json
-                [ -f package.json ] && npm ci || true
-
-                for t in ${TARGETS}; do
-                  echo "========== make ${t} =========="
-                  make "${t}" ENV="${ENV}" REGION="${REGION}"
-                done
-            post_build:
-              commands:
-                - echo "Done."
-          artifacts:
-            files:
-              - "**/*"
-            name: output
-            discard-paths: no
-      Environment:
-        Type: LINUX_CONTAINER
-        ComputeType: !Ref BuildComputeType
-        Image: !Ref BuildImage
-        PrivilegedMode: false
-        EnvironmentVariables:
-          - Name: ENV
-            Value: !Ref DeployEnv
-          - Name: REGION
-            Value: !Ref AwsRegionForMake
-          - Name: BRANCH_NAME
-            Value: !Ref BranchName
-      Triggers:
-        Webhook: true
-        FilterGroups:
-          - - Type: EVENT
-              Pattern: PUSH
-            - Type: HEAD_REF
-              Pattern: !Sub "refs/heads/${BranchName}"
-      TimeoutInMinutes: 30
+      Description: "PoC: role assumed by GitHub Actions from ${RepoFullName} on ${BranchName}"
       Tags:
-        - Key: Name
-          Value: cogira-poc-build
+        - Key: Project
+          Value: cogira-frontend
 
 Outputs:
-  RepositoryCloneUrlHttp:
-    Description: "CodeCommit HTTPS clone URL"
-    Value: !GetAtt Repo.CloneUrlHttp
-  CodeBuildProjectName:
-    Value: !Ref BuildProject
+  DeployRoleArn:
+    Description: "IAM role to assume from GitHub Actions"
+    Value: !GetAtt GitHubDeployRole.Arn
+  ArtifactBucket:
+    Description: "S3 bucket for SAM packaging"
+    Value: !Ref ArtifactBucket
+  OIDCProviderArn:
+    Condition: CreateOIDC
+    Value: !Ref GitHubOIDCProvider
