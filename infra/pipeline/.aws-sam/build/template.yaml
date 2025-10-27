@@ -1,129 +1,326 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: GitHub OIDC + Deploy Role + Artifacts bucket for cogira-frontend PoC
-  (fixed)
+Description: 'Path-aware CI for multi-stack Lambda/Layers (AWS-only): CodeCommit PR
+  -> CodeBuild Dispatcher -> stack-specific workers'
 Parameters:
-  RepoFullName:
+  ExistingRepoName:
     Type: String
-    Default: hayden74/cogira-frontend
-    Description: GitHub repo in owner/name format
+    Default: cogira-backend
   BranchName:
     Type: String
     Default: main
-  CreateOidcProvider:
+  ProjectPrefix:
     Type: String
-    AllowedValues:
-    - 'true'
-    - 'false'
-    Default: 'true'
-    Description: Set false if your account already has a GitHub OIDC provider
-  ExistingOidcProviderArn:
+    Default: cogira
+  CiEnv:
     Type: String
-    Default: ''
-    Description: Existing OIDC provider ARN (used when CreateOidcProvider=false)
-  ArtifactBucketName:
-    Type: String
-    Default: cogira-frontend-bucket
-    Description: S3 bucket for SAM packaging/artifacts (must be globally unique)
-Conditions:
-  CreateOIDC:
-    Fn::Equals:
-    - Ref: CreateOidcProvider
-    - 'true'
-  UseExistingOIDC:
-    Fn::Not:
-    - Fn::Equals:
-      - Ref: ExistingOidcProviderArn
-      - ''
+    Default: dev
+    Description: ENV passed to root Makefile (loads env/<ENV>.env)
+  NodeMajor:
+    Type: Number
+    Default: 20
+Mappings:
+  Images:
+    Standard:
+      Image: aws/codebuild/standard:7.0
 Resources:
-  ArtifactBucket:
-    Type: AWS::S3::Bucket
+  RepoArn:
+    Type: AWS::SSM::Parameter
     Properties:
-      BucketName:
-        Ref: ArtifactBucketName
-      BucketEncryption:
-        ServerSideEncryptionConfiguration:
-        - ServerSideEncryptionByDefault:
-            SSEAlgorithm: AES256
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      VersioningConfiguration:
-        Status: Enabled
-      Tags:
-      - Key: Name
-        Value: cogira-frontend-artifacts
-  ArtifactBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket:
-        Ref: ArtifactBucket
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-        - Sid: DenyInsecureTransport
-          Effect: Deny
-          Principal: '*'
-          Action: s3:*
-          Resource:
-          - Fn::Sub: ${ArtifactBucket.Arn}
-          - Fn::Sub: ${ArtifactBucket.Arn}/*
-          Condition:
-            Bool:
-              aws:SecureTransport: false
-  GitHubOIDCProvider:
-    Type: AWS::IAM::OIDCProvider
-    Condition: CreateOIDC
-    Properties:
-      Url: https://token.actions.githubusercontent.com
-      ClientIdList:
-      - sts.amazonaws.com
-      ThumbprintList:
-      - 6938fd4d98bab03faadb97b34396831e3780aea1
-  GitHubDeployRole:
+      Name:
+        Fn::Sub: /${ProjectPrefix}/ci/repo-arn/${ExistingRepoName}
+      Type: String
+      Value:
+        Fn::Sub: arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${ExistingRepoName}
+      Description: Stored here only to reuse Sub; not read at runtime.
+  EventsToCodeBuildRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: cogira-frontend-github-deploy-role
+      RoleName:
+        Fn::Sub: ${ProjectPrefix}-ci-events-startbuild
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
         - Effect: Allow
-          Action: sts:AssumeRoleWithWebIdentity
           Principal:
-            Federated:
-              Fn::If:
-              - CreateOIDC
-              - Ref: GitHubOIDCProvider
-              - Fn::If:
-                - UseExistingOIDC
-                - Ref: ExistingOidcProviderArn
-                - arn:aws:iam::000000000000:oidc-provider/token.actions.githubusercontent.com
-          Condition:
-            StringEquals:
-              token.actions.githubusercontent.com:aud: sts.amazonaws.com
-            StringLike:
-              token.actions.githubusercontent.com:sub:
-                Fn::Sub: repo:${RepoFullName}:ref:refs/heads/${BranchName}
-      ManagedPolicyArns:
-      - arn:aws:iam::aws:policy/AdministratorAccess
-      Description: 'PoC: role assumed by GitHub Actions from ${RepoFullName} on ${BranchName}'
-      Tags:
-      - Key: Project
-        Value: cogira-frontend
+            Service: events.amazonaws.com
+          Action: sts:AssumeRole
+      Policies:
+      - PolicyName: StartDispatcher
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action: codebuild:StartBuild
+            Resource:
+              Fn::GetAtt:
+              - CiDispatchProject
+              - Arn
+  CiDispatchRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName:
+        Fn::Sub: ${ProjectPrefix}-ci-dispatch-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: codebuild.amazonaws.com
+          Action: sts:AssumeRole
+      Policies:
+      - PolicyName: Logs
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Resource: '*'
+      - PolicyName: DiffAndTrigger
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - codecommit:GetDifferences
+            - codecommit:GetCommit
+            - codecommit:GetRepository
+            - codecommit:GetPullRequest
+            Resource:
+              Fn::Sub: arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${ExistingRepoName}
+          - Effect: Allow
+            Action: codebuild:StartBuild
+            Resource:
+            - Fn::GetAtt:
+              - CiDdbLayerProject
+              - Arn
+            - Fn::GetAtt:
+              - CiHelloLambdaProject
+              - Arn
+  CiWorkerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName:
+        Fn::Sub: ${ProjectPrefix}-ci-worker-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: codebuild.amazonaws.com
+          Action: sts:AssumeRole
+      Policies:
+      - PolicyName: Logs
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            Resource: '*'
+      - PolicyName: CodeCommitRead
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - codecommit:GitPull
+            - codecommit:GetRepository
+            - codecommit:GetBranch
+            Resource:
+              Fn::Sub: arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${ExistingRepoName}
+  CiDispatchProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name:
+        Fn::Sub: ${ProjectPrefix}-ci-dispatch
+      ServiceRole:
+        Fn::GetAtt:
+        - CiDispatchRole
+        - Arn
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Source:
+        Type: NO_SOURCE
+        BuildSpec: "version: 0.2\nphases:\n  install:\n    runtime-versions:\n   \
+          \   nodejs: 20\n    commands:\n      - yum -y -q install jq >/dev/null\n\
+          \  build:\n    commands:\n      - echo \"Dispatching for PR $PR_ID on $REPO_NAME\"\
+          \n      - >\n        aws codecommit get-differences\n        --repository-name\
+          \ \"$REPO_NAME\"\n        --before-commit-specifier \"$DESTINATION_COMMIT\"\
+          \n        --after-commit-specifier  \"$SOURCE_COMMIT\"\n        --output\
+          \ json\n        | jq -r '.differences[]? | (.afterBlob.path // .beforeBlob.path)'\n\
+          \        | sort -u > /tmp/changed.txt\n      - echo \"Changed paths:\" &&\
+          \ cat /tmp/changed.txt || true\n      - export MAKE_DDB=\"ci-ddb-layer\"\
+          \n      - export MAKE_HELLO=\"ci-hello-lambda\"\n      - if grep -qE '^layers/ddb/'\
+          \ /tmp/changed.txt; then\n          echo \"Starting $CI_DDB for $MAKE_DDB\"\
+          ;\n          aws codebuild start-build --project-name \"$CI_DDB\" \\\n \
+          \           --source-version \"$SOURCE_COMMIT\" \\\n            --environment-variables-override\
+          \ \\\n              name=ENV,value=\"$CI_ENV\",type=PLAINTEXT \\\n     \
+          \         name=MAKE_TARGET,value=\"$MAKE_DDB\",type=PLAINTEXT;\n       \
+          \ else echo \"No ddb changes\"; fi\n      - if grep -qE '^functions/hello-lambda/'\
+          \ /tmp/changed.txt; then\n          echo \"Starting $CI_HELLO for $MAKE_HELLO\"\
+          ;\n          aws codebuild start-build --project-name \"$CI_HELLO\" \\\n\
+          \            --source-version \"$SOURCE_COMMIT\" \\\n            --environment-variables-override\
+          \ \\\n              name=ENV,value=\"$CI_ENV\",type=PLAINTEXT \\\n     \
+          \         name=MAKE_TARGET,value=\"$MAKE_HELLO\",type=PLAINTEXT;\n     \
+          \   else echo \"No hello-lambda changes\"; fi\n"
+      Environment:
+        Type: LINUX_CONTAINER
+        Image:
+          Fn::FindInMap:
+          - Images
+          - Standard
+          - Image
+        ComputeType: BUILD_GENERAL1_SMALL
+        EnvironmentVariables:
+        - Name: REPO_NAME
+          Value:
+            Ref: ExistingRepoName
+        - Name: BRANCH
+          Value:
+            Ref: BranchName
+        - Name: CI_ENV
+          Value:
+            Ref: CiEnv
+        - Name: CI_DDB
+          Value:
+            Ref: CiDdbLayerProject
+        - Name: CI_HELLO
+          Value:
+            Ref: CiHelloLambdaProject
+      TimeoutInMinutes: 10
+      QueuedTimeoutInMinutes: 10
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+  CiDdbLayerProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name:
+        Fn::Sub: ${ProjectPrefix}-ci-layers-ddb
+      ServiceRole:
+        Fn::GetAtt:
+        - CiWorkerRole
+        - Arn
+      Source:
+        Type: CODECOMMIT
+        Location:
+          Fn::Sub: https://git-codecommit.${AWS::Region}.amazonaws.com/v1/repos/${ExistingRepoName}
+        GitCloneDepth: 1
+        BuildSpec: "version: 0.2\nphases:\n  install:\n    runtime-versions:\n   \
+          \   nodejs: 20\n    commands:\n      - python3 -m pip install --upgrade\
+          \ pip >/dev/null\n      - python3 -m pip install aws-sam-cli >/dev/null\n\
+          \      - npm -v || true\n  build:\n    commands:\n      - echo \"Root make\
+          \ target: $MAKE_TARGET (ENV=$ENV)\"\n      - make -e $MAKE_TARGET\n"
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Environment:
+        Type: LINUX_CONTAINER
+        Image:
+          Fn::FindInMap:
+          - Images
+          - Standard
+          - Image
+        ComputeType: BUILD_GENERAL1_SMALL
+        EnvironmentVariables:
+        - Name: ENV
+          Value:
+            Ref: CiEnv
+        - Name: MAKE_TARGET
+          Value: ci-ddb-layer
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+  CiHelloLambdaProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name:
+        Fn::Sub: ${ProjectPrefix}-ci-functions-hello
+      ServiceRole:
+        Fn::GetAtt:
+        - CiWorkerRole
+        - Arn
+      Source:
+        Type: CODECOMMIT
+        Location:
+          Fn::Sub: https://git-codecommit.${AWS::Region}.amazonaws.com/v1/repos/${ExistingRepoName}
+        GitCloneDepth: 1
+        BuildSpec: "version: 0.2\nphases:\n  install:\n    runtime-versions:\n   \
+          \   nodejs: 20\n    commands:\n      - python3 -m pip install --upgrade\
+          \ pip >/dev/null\n      - python3 -m pip install aws-sam-cli >/dev/null\n\
+          \  build:\n    commands:\n      - echo \"Root make target: $MAKE_TARGET\
+          \ (ENV=$ENV)\"\n      - make -e $MAKE_TARGET\n"
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Environment:
+        Type: LINUX_CONTAINER
+        Image:
+          Fn::FindInMap:
+          - Images
+          - Standard
+          - Image
+        ComputeType: BUILD_GENERAL1_SMALL
+        EnvironmentVariables:
+        - Name: ENV
+          Value:
+            Ref: CiEnv
+        - Name: MAKE_TARGET
+          Value: ci-hello-lambda
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+  PullRequestCI:
+    Type: AWS::Events::Rule
+    Properties:
+      Name:
+        Fn::Sub: ${ProjectPrefix}-ci-pr
+      Description: Trigger CI on CodeCommit PR create/update to ${BranchName}
+      EventPattern:
+        source:
+        - aws.codecommit
+        detail-type:
+        - CodeCommit Pull Request State Change
+        resources:
+        - Fn::Sub: arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${ExistingRepoName}
+        detail:
+          event:
+          - pullRequestCreated
+          - pullRequestSourceBranchUpdated
+          - pullRequestReopened
+          destinationReference:
+          - Fn::Sub: refs/heads/${BranchName}
+      Targets:
+      - Id: Dispatch
+        Arn:
+          Fn::GetAtt:
+          - CiDispatchProject
+          - Arn
+        RoleArn:
+          Fn::GetAtt:
+          - EventsToCodeBuildRole
+          - Arn
+        InputTransformer:
+          InputPathsMap:
+            pr: $.detail.pullRequestId
+            srcCommit: $.detail.sourceCommit
+            dstCommit: $.detail.destinationCommit
+          InputTemplate: "{\n  \"sourceVersion\": \"refs/heads/main\",\n  \"environmentVariablesOverride\"\
+            : [\n    {\"name\":\"PR_ID\",\"value\":\"<pr>\",\"type\":\"PLAINTEXT\"\
+            },\n    {\"name\":\"SOURCE_COMMIT\",\"value\":\"<srcCommit>\",\"type\"\
+            :\"PLAINTEXT\"},\n    {\"name\":\"DESTINATION_COMMIT\",\"value\":\"<dstCommit>\"\
+            ,\"type\":\"PLAINTEXT\"}\n  ]\n}\n"
 Outputs:
-  DeployRoleArn:
-    Description: IAM role to assume from GitHub Actions
+  DispatchProject:
     Value:
-      Fn::GetAtt:
-      - GitHubDeployRole
-      - Arn
-  ArtifactBucket:
-    Description: S3 bucket for SAM packaging
+      Ref: CiDispatchProject
+  WorkerDdb:
     Value:
-      Ref: ArtifactBucket
-  OIDCProviderArn:
-    Condition: CreateOIDC
+      Ref: CiDdbLayerProject
+  WorkerHello:
     Value:
-      Ref: GitHubOIDCProvider
+      Ref: CiHelloLambdaProject

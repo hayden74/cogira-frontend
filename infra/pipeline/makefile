@@ -1,5 +1,5 @@
 STACKNAME ?= $(PROJECT_PREFIX)-cogira-frontend-pipeline
-TEMPLATE ?= template-cc.yaml
+TEMPLATE ?= template-cc-ci.yaml
 
 build:
 	sam build --template-file $(TEMPLATE)
