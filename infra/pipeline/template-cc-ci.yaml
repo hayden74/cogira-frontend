@@ -147,7 +147,7 @@ Resources:
               runtime-versions:
                 nodejs: 20
               commands:
-                - yum -y -q install jq >/dev/null
+                - apt-get update -y && apt-get install -y jq
             build:
               commands:
                 - echo "Dispatching for PR $PR_ID on $REPO_NAME"
@@ -210,8 +210,10 @@ Resources:
               runtime-versions:
                 nodejs: 20
               commands:
-                - python3 -m pip install --upgrade pip >/dev/null
-                - python3 -m pip install aws-sam-cli >/dev/null
+                - python3 -m pip install --upgrade pip
+                - python3 -m pip install --user aws-sam-cli
+                - export PATH="$PATH:/root/.local/bin"
+                - sam --version
                 - npm -v || true
             build:
               commands:
@@ -244,8 +246,11 @@ Resources:
               runtime-versions:
                 nodejs: 20
               commands:
-                - python3 -m pip install --upgrade pip >/dev/null
-                - python3 -m pip install aws-sam-cli >/dev/null
+                - python3 -m pip install --upgrade pip
+                - python3 -m pip install --user aws-sam-cli
+                - export PATH="$PATH:/root/.local/bin"
+                - sam --version
+                - npm -v || true
             build:
               commands:
                 - echo "Root make target: $MAKE_TARGET (ENV=$ENV)"
