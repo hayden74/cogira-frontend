@@ -27,15 +27,15 @@ Mappings:
 
 Resources:
   #############################################
-  # ARNs / constants for existing CodeCommit
+  # Optional helper param (not used at runtime)
   #############################################
   RepoArn:
-    Type: "AWS::SSM::Parameter"
+    Type: AWS::SSM::Parameter
     Properties:
       Name: !Sub "/${ProjectPrefix}/ci/repo-arn/${ExistingRepoName}"
       Type: String
       Value: !Sub "arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${ExistingRepoName}"
-      Description: "Stored here only to reuse Sub; not read at runtime."
+      Description: "Stored for reference only."
 
   #############################################
   # Roles
@@ -212,7 +212,6 @@ Resources:
       LogsConfig:
         CloudWatchLogs: { Status: ENABLED }
 
-  # Worker: runs root-level make <target>
   CiDdbLayerProject:
     Type: AWS::CodeBuild::Project
     Properties:
@@ -238,18 +237,16 @@ Resources:
               commands:
                 - echo "Root make target: $MAKE_TARGET (ENV=$ENV)"
                 - make -e $MAKE_TARGET
-
-
-            Artifacts: { Type: NO_ARTIFACTS }
-            Environment:
-              Type: LINUX_CONTAINER
-              Image: !FindInMap [Images, Standard, Image]
-              ComputeType: BUILD_GENERAL1_SMALL
-              EnvironmentVariables:
-                - { Name: ENV, Value: !Ref CiEnv }
-                - { Name: MAKE_TARGET, Value: "ci-ddb-layer" }
-            LogsConfig:
-              CloudWatchLogs: { Status: ENABLED }
+      Artifacts: { Type: NO_ARTIFACTS }
+      Environment:
+        Type: LINUX_CONTAINER
+        Image: !FindInMap [Images, Standard, Image]
+        ComputeType: BUILD_GENERAL1_SMALL
+        EnvironmentVariables:
+          - { Name: ENV, Value: !Ref CiEnv }
+          - { Name: MAKE_TARGET, Value: "ci-ddb-layer" }
+      LogsConfig:
+        CloudWatchLogs: { Status: ENABLED }
 
   CiHelloLambdaProject:
     Type: AWS::CodeBuild::Project
@@ -276,18 +273,16 @@ Resources:
               commands:
                 - echo "Root make target: $MAKE_TARGET (ENV=$ENV)"
                 - make -e $MAKE_TARGET
-
-
-            Artifacts: { Type: NO_ARTIFACTS }
-            Environment:
-              Type: LINUX_CONTAINER
-              Image: !FindInMap [Images, Standard, Image]
-              ComputeType: BUILD_GENERAL1_SMALL
-              EnvironmentVariables:
-                - { Name: ENV, Value: !Ref CiEnv }
-                - { Name: MAKE_TARGET, Value: "ci-hello-lambda" }
-            LogsConfig:
-              CloudWatchLogs: { Status: ENABLED }
+      Artifacts: { Type: NO_ARTIFACTS }
+      Environment:
+        Type: LINUX_CONTAINER
+        Image: !FindInMap [Images, Standard, Image]
+        ComputeType: BUILD_GENERAL1_SMALL
+        EnvironmentVariables:
+          - { Name: ENV, Value: !Ref CiEnv }
+          - { Name: MAKE_TARGET, Value: "ci-hello-lambda" }
+      LogsConfig:
+        CloudWatchLogs: { Status: ENABLED }
 
   #############################################
   # PR events -> dispatcher
@@ -304,12 +299,11 @@ Resources:
           - !Sub "arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${ExistingRepoName}"
         detail:
           event:
-            [
-              "pullRequestCreated",
-              "pullRequestSourceBranchUpdated",
-              "pullRequestReopened",
-            ]
-          destinationReference: [!Sub "refs/heads/${BranchName}"]
+            - pullRequestCreated
+            - pullRequestSourceBranchUpdated
+            - pullRequestReopened
+          destinationReference:
+            - !Sub "refs/heads/${BranchName}"
       Targets:
         - Id: Dispatch
           Arn: !GetAtt CiDispatchProject.Arn
@@ -321,7 +315,6 @@ Resources:
               dstCommit: $.detail.destinationCommit
             InputTemplate: |
               {
-                "sourceVersion": "refs/heads/main",
                 "environmentVariablesOverride": [
                   {"name":"PR_ID","value":"<pr>","type":"PLAINTEXT"},
                   {"name":"SOURCE_COMMIT","value":"<srcCommit>","type":"PLAINTEXT"},
