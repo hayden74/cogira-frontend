@@ -204,7 +204,7 @@ Resources:
         CloudWatchLogs:
           Status: ENABLED
 
-  ###########################################################
+  ##########################################################
   # PR events -> dispatcher (pins buildspec to destination commit)
   ############################################################
   PullRequestCI:
