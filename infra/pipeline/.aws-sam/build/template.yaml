@@ -3,7 +3,7 @@ Transform: AWS::Serverless-2016-10-31
 Description: 'Path-aware CI for multi-stack Lambda/Layers (AWS-only): CodeCommit PR
   -> CodeBuild Dispatcher -> stack-specific workers'
 Parameters:
-  ExistingRepoName:
+  RepoName:
     Type: String
     Default: cogira-backend
   BranchName:
@@ -28,11 +28,11 @@ Resources:
     Type: AWS::SSM::Parameter
     Properties:
       Name:
-        Fn::Sub: /${ProjectPrefix}/ci/repo-arn/${ExistingRepoName}
+        Fn::Sub: /${ProjectPrefix}/ci/repo-arn/${RepoName}
       Type: String
       Value:
-        Fn::Sub: arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${ExistingRepoName}
-      Description: Stored here only to reuse Sub; not read at runtime.
+        Fn::Sub: arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${RepoName}
+      Description: Stored for reference only.
   EventsToCodeBuildRole:
     Type: AWS::IAM::Role
     Properties:
@@ -89,8 +89,9 @@ Resources:
             - codecommit:GetCommit
             - codecommit:GetRepository
             - codecommit:GetPullRequest
+            - codecommit:GitPull
             Resource:
-              Fn::Sub: arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${ExistingRepoName}
+              Fn::Sub: arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${RepoName}
           - Effect: Allow
             Action: codebuild:StartBuild
             Resource:
@@ -132,8 +133,9 @@ Resources:
             - codecommit:GitPull
             - codecommit:GetRepository
             - codecommit:GetBranch
+            - codecommit:GetCommit
             Resource:
-              Fn::Sub: arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${ExistingRepoName}
+              Fn::Sub: arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${RepoName}
   CiDispatchProject:
     Type: AWS::CodeBuild::Project
     Properties:
@@ -146,46 +148,43 @@ Resources:
       Artifacts:
         Type: NO_ARTIFACTS
       Source:
-        Type: NO_SOURCE
-        BuildSpec: "version: 0.2\nphases:\n  install:\n    runtime-versions:\n   \
-          \   nodejs: 20\n    commands:\n      - apt-get update -y && apt-get install\
-          \ -y jq\n    build:\n      commands:\n        - set -euo pipefail\n    \
-          \    - echo \"Dispatching for PR $PR_ID on $REPO_NAME\"\n        - >\n \
-          \         aws codecommit get-differences\n          --repository-name \"\
-          $REPO_NAME\"\n          --before-commit-specifier \"$DESTINATION_COMMIT\"\
-          \n          --after-commit-specifier  \"$SOURCE_COMMIT\"\n          --output\
-          \ json\n          | jq -r '.differences[]? | (.afterBlob.path // .beforeBlob.path)'\n\
-          \          | sort -u > /tmp/changed.txt\n        - echo \"Changed paths:\"\
-          \ && cat /tmp/changed.txt || true\n\n        # ddb worker\n        - |\n\
-          \          if grep -qE '^layers/ddb/' /tmp/changed.txt; then\n         \
-          \   echo \"Starting $CI_DDB for ci-ddb-layer\"\n            PAYLOAD=$(jq\
-          \ -n \\\n              --arg p  \"$CI_DDB\" \\\n              --arg sv \"\
-          $SOURCE_COMMIT\" \\\n              --arg env \"$CI_ENV\" \\\n          \
-          \    --arg mt \"ci-ddb-layer\" \\\n              '{projectName:$p, sourceVersion:$sv,\n\
-          \                environmentVariablesOverride:[\n                  {name:\"\
-          ENV\", value:$env, type:\"PLAINTEXT\"},\n                  {name:\"MAKE_TARGET\"\
-          , value:$mt, type:\"PLAINTEXT\"}]}')\n            aws codebuild start-build\
-          \ --cli-input-json \"$PAYLOAD\"\n          else\n            echo \"No ddb\
-          \ changes\"\n          fi\n\n        # hello worker\n        - |\n     \
-          \     if grep -qE '^functions/hello-lambda/' /tmp/changed.txt; then\n  \
-          \          echo \"Starting $CI_HELLO for ci-hello-lambda\"\n           \
-          \ PAYLOAD=$(jq -n \\\n              --arg p  \"$CI_HELLO\" \\\n        \
-          \      --arg sv \"$SOURCE_COMMIT\" \\\n              --arg env \"$CI_ENV\"\
-          \ \\\n              --arg mt \"ci-hello-lambda\" \\\n              '{projectName:$p,\
-          \ sourceVersion:$sv,\n                environmentVariablesOverride:[\n \
-          \                 {name:\"ENV\", value:$env, type:\"PLAINTEXT\"},\n    \
-          \              {name:\"MAKE_TARGET\", value:$mt, type:\"PLAINTEXT\"}]}')\n\
-          \            aws codebuild start-build --cli-input-json \"$PAYLOAD\"\n \
-          \         else\n            echo \"No hello-lambda changes\"\n         \
-          \ fi\n\n          \n          Environment:\n            Type: LINUX_CONTAINER\n\
-          \            Image: !FindInMap [Images, Standard, Image]\n            ComputeType:\
-          \ BUILD_GENERAL1_SMALL\n            EnvironmentVariables:\n            \
-          \  - { Name: REPO_NAME, Value: !Ref ExistingRepoName }\n              -\
-          \ { Name: BRANCH, Value: !Ref BranchName }\n              - { Name: CI_ENV,\
-          \ Value: !Ref CiEnv }\n              - { Name: CI_DDB, Value: !Ref CiDdbLayerProject\
-          \ }\n              - { Name: CI_HELLO, Value: !Ref CiHelloLambdaProject\
-          \ }\n          TimeoutInMinutes: 10\n          QueuedTimeoutInMinutes: 10\n\
-          \          LogsConfig:\n            CloudWatchLogs: { Status: ENABLED }\n"
+        Type: CODECOMMIT
+        Location:
+          Fn::Sub: https://git-codecommit.${AWS::Region}.amazonaws.com/v1/repos/${RepoName}
+        GitCloneDepth: 1
+        BuildSpec: pipeline/ci-dispatcher.yml
+      Environment:
+        Type: LINUX_CONTAINER
+        Image:
+          Fn::FindInMap:
+          - Images
+          - Standard
+          - Image
+        ComputeType: BUILD_GENERAL1_SMALL
+        EnvironmentVariables:
+        - Name: REPO_NAME
+          Value:
+            Ref: RepoName
+        - Name: BRANCH
+          Value:
+            Ref: BranchName
+        - Name: CI_ENV
+          Value:
+            Ref: CiEnv
+        - Name: CI_DDB
+          Value:
+            Ref: CiDdbLayerProject
+        - Name: CI_HELLO
+          Value:
+            Ref: CiHelloLambdaProject
+        - Name: NODE_MAJOR
+          Value:
+            Ref: NodeMajor
+      TimeoutInMinutes: 10
+      QueuedTimeoutInMinutes: 10
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
   CiDdbLayerProject:
     Type: AWS::CodeBuild::Project
     Properties:
@@ -195,19 +194,14 @@ Resources:
         Fn::GetAtt:
         - CiWorkerRole
         - Arn
+      Artifacts:
+        Type: NO_ARTIFACTS
       Source:
         Type: CODECOMMIT
         Location:
-          Fn::Sub: https://git-codecommit.${AWS::Region}.amazonaws.com/v1/repos/${ExistingRepoName}
+          Fn::Sub: https://git-codecommit.${AWS::Region}.amazonaws.com/v1/repos/${RepoName}
         GitCloneDepth: 1
-        BuildSpec: "version: 0.2\nphases:\n  install:\n    runtime-versions:\n   \
-          \   nodejs: 20\n    commands:\n      - python3 -m pip install --upgrade\
-          \ pip\n      - python3 -m pip install --user aws-sam-cli\n      - export\
-          \ PATH=\"$PATH:/root/.local/bin\"\n      - sam --version\n      - npm -v\
-          \ || true\n  build:\n    commands:\n      - echo \"Root make target: $MAKE_TARGET\
-          \ (ENV=$ENV)\"\n      - make -e $MAKE_TARGET\n"
-      Artifacts:
-        Type: NO_ARTIFACTS
+        BuildSpec: pipeline/ci-worker.yml
       Environment:
         Type: LINUX_CONTAINER
         Image:
@@ -222,6 +216,9 @@ Resources:
             Ref: CiEnv
         - Name: MAKE_TARGET
           Value: ci-ddb-layer
+        - Name: NODE_MAJOR
+          Value:
+            Ref: NodeMajor
       LogsConfig:
         CloudWatchLogs:
           Status: ENABLED
@@ -234,19 +231,14 @@ Resources:
         Fn::GetAtt:
         - CiWorkerRole
         - Arn
+      Artifacts:
+        Type: NO_ARTIFACTS
       Source:
         Type: CODECOMMIT
         Location:
-          Fn::Sub: https://git-codecommit.${AWS::Region}.amazonaws.com/v1/repos/${ExistingRepoName}
+          Fn::Sub: https://git-codecommit.${AWS::Region}.amazonaws.com/v1/repos/${RepoName}
         GitCloneDepth: 1
-        BuildSpec: "version: 0.2\nphases:\n  install:\n    runtime-versions:\n   \
-          \   nodejs: 20\n    commands:\n      - python3 -m pip install --upgrade\
-          \ pip\n      - python3 -m pip install --user aws-sam-cli\n      - export\
-          \ PATH=\"$PATH:/root/.local/bin\"\n      - sam --version\n      - npm -v\
-          \ || true\n  build:\n    commands:\n      - echo \"Root make target: $MAKE_TARGET\
-          \ (ENV=$ENV)\"\n      - make -e $MAKE_TARGET\n"
-      Artifacts:
-        Type: NO_ARTIFACTS
+        BuildSpec: pipeline/ci-worker.yml
       Environment:
         Type: LINUX_CONTAINER
         Image:
@@ -261,6 +253,9 @@ Resources:
             Ref: CiEnv
         - Name: MAKE_TARGET
           Value: ci-hello-lambda
+        - Name: NODE_MAJOR
+          Value:
+            Ref: NodeMajor
       LogsConfig:
         CloudWatchLogs:
           Status: ENABLED
@@ -269,14 +264,15 @@ Resources:
     Properties:
       Name:
         Fn::Sub: ${ProjectPrefix}-ci-pr
-      Description: Trigger CI on CodeCommit PR create/update to ${BranchName}
+      Description:
+        Fn::Sub: Trigger CI on CodeCommit PR create/update to ${BranchName}
       EventPattern:
         source:
         - aws.codecommit
         detail-type:
         - CodeCommit Pull Request State Change
         resources:
-        - Fn::Sub: arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${ExistingRepoName}
+        - Fn::Sub: arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${RepoName}
         detail:
           event:
           - pullRequestCreated
@@ -299,7 +295,7 @@ Resources:
             pr: $.detail.pullRequestId
             srcCommit: $.detail.sourceCommit
             dstCommit: $.detail.destinationCommit
-          InputTemplate: "{\n  \"sourceVersion\": \"refs/heads/main\",\n  \"environmentVariablesOverride\"\
+          InputTemplate: "{\n  \"sourceVersion\": \"<dstCommit>\",\n  \"environmentVariablesOverride\"\
             : [\n    {\"name\":\"PR_ID\",\"value\":\"<pr>\",\"type\":\"PLAINTEXT\"\
             },\n    {\"name\":\"SOURCE_COMMIT\",\"value\":\"<srcCommit>\",\"type\"\
             :\"PLAINTEXT\"},\n    {\"name\":\"DESTINATION_COMMIT\",\"value\":\"<dstCommit>\"\

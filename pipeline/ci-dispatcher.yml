@@ -1,0 +1,55 @@
+version: 0.2
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+    commands:
+      - apt-get update -y && apt-get install -y jq
+      - aws --version
+  build:
+    commands:
+      - set -eu
+      - |
+        CHANGED=$(aws codecommit get-differences \
+          --repository-name "$REPO_NAME" \
+          --before-commit-specifier "$DESTINATION_COMMIT" \
+          --after-commit-specifier  "$SOURCE_COMMIT" \
+          --output json | jq -r '.differences[]? | (.afterBlob.path // .beforeBlob.path)')
+        printf "%s\n" "$CHANGED" | sort -u > /tmp/changed.txt
+        echo "Changed paths:"; cat /tmp/changed.txt || true
+
+      # ddb worker
+      - |
+        if grep -qE '^layers/ddb/' /tmp/changed.txt; then
+          jq -n \
+            --arg p "$CI_DDB" \
+            --arg sv "$SOURCE_COMMIT" \
+            --arg env "$CI_ENV" \
+            --arg mt "ci-ddb-layer" \
+            '{projectName:$p, sourceVersion:$sv,
+              environmentVariablesOverride:[
+                {name:"ENV", value:$env, type:"PLAINTEXT"},
+                {name:"MAKE_TARGET", value:$mt, type:"PLAINTEXT"}]}' \
+            > /tmp/payload.json
+          aws codebuild start-build --cli-input-json file:///tmp/payload.json
+        else
+          echo "No ddb changes"
+        fi
+
+      # hello worker
+      - |
+        if grep -qE '^functions/hello-lambda/' /tmp/changed.txt; then
+          jq -n \
+            --arg p "$CI_HELLO" \
+            --arg sv "$SOURCE_COMMIT" \
+            --arg env "$CI_ENV" \
+            --arg mt "ci-hello-lambda" \
+            '{projectName:$p, sourceVersion:$sv,
+              environmentVariablesOverride:[
+                {name:"ENV", value:$env, type:"PLAINTEXT"},
+                {name:"MAKE_TARGET", value:$mt, type:"PLAINTEXT"}]}' \
+            > /tmp/payload.json
+          aws codebuild start-build --cli-input-json file:///tmp/payload.json
+        else
+          echo "No hello-lambda changes"
+        fi

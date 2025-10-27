@@ -1,9 +1,9 @@
 AWSTemplateFormatVersion: 2010-09-09
 Transform: AWS::Serverless-2016-10-31
-Description: "Path-aware CI for multi-stack Lambda/Layers (AWS-only): CodeCommit PR -> CodeBuild Dispatcher -> stack-specific workers"
+Description: "Path-aware CI for multi-stack"
 
 Parameters:
-  ExistingRepoName:
+  RepoName:
     Type: String
     Default: cogira-backend
   BranchName:
@@ -26,20 +26,18 @@ Mappings:
       Image: "aws/codebuild/standard:7.0"
 
 Resources:
-  #############################################
-  # Optional helper param (not used at runtime)
-  #############################################
+  # Optional helper param (reference only)
   RepoArn:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub "/${ProjectPrefix}/ci/repo-arn/${ExistingRepoName}"
+      Name: !Sub "/${ProjectPrefix}/ci/repo-arn/${RepoName}"
       Type: String
-      Value: !Sub "arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${ExistingRepoName}"
+      Value: !Sub "arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${RepoName}"
       Description: "Stored for reference only."
 
-  #############################################
+  ############################################################
   # Roles
-  #############################################
+  ############################################################
   EventsToCodeBuildRole:
     Type: AWS::IAM::Role
     Properties:
@@ -84,13 +82,16 @@ Resources:
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
+              # read PR + diffs + clone buildspec from repo
               - Effect: Allow
                 Action:
                   - codecommit:GetDifferences
                   - codecommit:GetCommit
                   - codecommit:GetRepository
                   - codecommit:GetPullRequest
-                Resource: !Sub "arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${ExistingRepoName}"
+                  - codecommit:GitPull
+                Resource: !Sub "arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${RepoName}"
+              # start worker builds
               - Effect: Allow
                 Action: codebuild:StartBuild
                 Resource:
@@ -127,11 +128,12 @@ Resources:
                   - codecommit:GitPull
                   - codecommit:GetRepository
                   - codecommit:GetBranch
-                Resource: !Sub "arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${ExistingRepoName}"
+                  - codecommit:GetCommit
+                Resource: !Sub "arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${RepoName}"
 
-  #############################################
+  ############################################################
   # CodeBuild projects
-  #############################################
+  ############################################################
   CiDispatchProject:
     Type: AWS::CodeBuild::Project
     Properties:
@@ -139,74 +141,21 @@ Resources:
       ServiceRole: !GetAtt CiDispatchRole.Arn
       Artifacts: { Type: NO_ARTIFACTS }
       Source:
-        Type: NO_SOURCE
-        BuildSpec: !Sub |
-          version: 0.2
-          phases:
-            install:
-              runtime-versions:
-                nodejs: ${NodeMajor}
-              commands:
-                - apt-get update -y && apt-get install -y jq
-            build:
-              commands:
-                - set -euo pipefail
-                - echo "Dispatching for PR $PR_ID on $REPO_NAME"
-                - >
-                  aws codecommit get-differences
-                  --repository-name "$REPO_NAME"
-                  --before-commit-specifier "$DESTINATION_COMMIT"
-                  --after-commit-specifier  "$SOURCE_COMMIT"
-                  --output json
-                  | jq -r '.differences[]? | (.afterBlob.path // .beforeBlob.path)'
-                  | sort -u > /tmp/changed.txt
-                - echo "Changed paths:" && cat /tmp/changed.txt || true
-
-                # ddb worker
-                - |
-                  if grep -qE '^layers/ddb/' /tmp/changed.txt; then
-                    echo "Starting $CI_DDB for ci-ddb-layer"
-                    PAYLOAD=$(jq -n \
-                      --arg p  "$CI_DDB" \
-                      --arg sv "$SOURCE_COMMIT" \
-                      --arg env "$CI_ENV" \
-                      --arg mt "ci-ddb-layer" \
-                      '{projectName:$p, sourceVersion:$sv,
-                        environmentVariablesOverride:[
-                          {name:"ENV", value:$env, type:"PLAINTEXT"},
-                          {name:"MAKE_TARGET", value:$mt, type:"PLAINTEXT"}]}')
-                    aws codebuild start-build --cli-input-json "$PAYLOAD"
-                  else
-                    echo "No ddb changes"
-                  fi
-
-                # hello worker
-                - |
-                  if grep -qE '^functions/hello-lambda/' /tmp/changed.txt; then
-                    echo "Starting $CI_HELLO for ci-hello-lambda"
-                    PAYLOAD=$(jq -n \
-                      --arg p  "$CI_HELLO" \
-                      --arg sv "$SOURCE_COMMIT" \
-                      --arg env "$CI_ENV" \
-                      --arg mt "ci-hello-lambda" \
-                      '{projectName:$p, sourceVersion:$sv,
-                        environmentVariablesOverride:[
-                          {name:"ENV", value:$env, type:"PLAINTEXT"},
-                          {name:"MAKE_TARGET", value:$mt, type:"PLAINTEXT"}]}')
-                    aws codebuild start-build --cli-input-json "$PAYLOAD"
-                  else
-                    echo "No hello-lambda changes"
-                  fi
+        Type: CODECOMMIT
+        Location: !Sub "https://git-codecommit.${AWS::Region}.amazonaws.com/v1/repos/${RepoName}"
+        GitCloneDepth: 1
+        BuildSpec: "pipeline/ci-dispatcher.yml" # lives in repo
       Environment:
         Type: LINUX_CONTAINER
         Image: !FindInMap [Images, Standard, Image]
         ComputeType: BUILD_GENERAL1_SMALL
         EnvironmentVariables:
-          - { Name: REPO_NAME, Value: !Ref ExistingRepoName }
+          - { Name: REPO_NAME, Value: !Ref RepoName }
           - { Name: BRANCH, Value: !Ref BranchName }
           - { Name: CI_ENV, Value: !Ref CiEnv }
           - { Name: CI_DDB, Value: !Ref CiDdbLayerProject }
           - { Name: CI_HELLO, Value: !Ref CiHelloLambdaProject }
+          - { Name: NODE_MAJOR, Value: !Ref NodeMajor }
       TimeoutInMinutes: 10
       QueuedTimeoutInMinutes: 10
       LogsConfig:
@@ -217,27 +166,12 @@ Resources:
     Properties:
       Name: !Sub "${ProjectPrefix}-ci-layers-ddb"
       ServiceRole: !GetAtt CiWorkerRole.Arn
+      Artifacts: { Type: NO_ARTIFACTS }
       Source:
         Type: CODECOMMIT
-        Location: !Sub "https://git-codecommit.${AWS::Region}.amazonaws.com/v1/repos/${ExistingRepoName}"
+        Location: !Sub "https://git-codecommit.${AWS::Region}.amazonaws.com/v1/repos/${RepoName}"
         GitCloneDepth: 1
-        BuildSpec: !Sub |
-          version: 0.2
-          phases:
-            install:
-              runtime-versions:
-                nodejs: ${NodeMajor}
-              commands:
-                - python3 -m pip install --upgrade pip
-                - python3 -m pip install --user aws-sam-cli
-                - export PATH="$PATH:/root/.local/bin"
-                - sam --version
-                - npm -v || true
-            build:
-              commands:
-                - echo "Root make target: $MAKE_TARGET (ENV=$ENV)"
-                - make -e $MAKE_TARGET
-      Artifacts: { Type: NO_ARTIFACTS }
+        BuildSpec: "pipeline/ci-worker.yml" # shared worker buildspec
       Environment:
         Type: LINUX_CONTAINER
         Image: !FindInMap [Images, Standard, Image]
@@ -245,6 +179,7 @@ Resources:
         EnvironmentVariables:
           - { Name: ENV, Value: !Ref CiEnv }
           - { Name: MAKE_TARGET, Value: "ci-ddb-layer" }
+          - { Name: NODE_MAJOR, Value: !Ref NodeMajor }
       LogsConfig:
         CloudWatchLogs: { Status: ENABLED }
 
@@ -253,27 +188,12 @@ Resources:
     Properties:
       Name: !Sub "${ProjectPrefix}-ci-functions-hello"
       ServiceRole: !GetAtt CiWorkerRole.Arn
+      Artifacts: { Type: NO_ARTIFACTS }
       Source:
         Type: CODECOMMIT
-        Location: !Sub "https://git-codecommit.${AWS::Region}.amazonaws.com/v1/repos/${ExistingRepoName}"
+        Location: !Sub "https://git-codecommit.${AWS::Region}.amazonaws.com/v1/repos/${RepoName}"
         GitCloneDepth: 1
-        BuildSpec: !Sub |
-          version: 0.2
-          phases:
-            install:
-              runtime-versions:
-                nodejs: ${NodeMajor}
-              commands:
-                - python3 -m pip install --upgrade pip
-                - python3 -m pip install --user aws-sam-cli
-                - export PATH="$PATH:/root/.local/bin"
-                - sam --version
-                - npm -v || true
-            build:
-              commands:
-                - echo "Root make target: $MAKE_TARGET (ENV=$ENV)"
-                - make -e $MAKE_TARGET
-      Artifacts: { Type: NO_ARTIFACTS }
+        BuildSpec: "pipeline/ci-worker.yml" # shared worker buildspec
       Environment:
         Type: LINUX_CONTAINER
         Image: !FindInMap [Images, Standard, Image]
@@ -281,22 +201,23 @@ Resources:
         EnvironmentVariables:
           - { Name: ENV, Value: !Ref CiEnv }
           - { Name: MAKE_TARGET, Value: "ci-hello-lambda" }
+          - { Name: NODE_MAJOR, Value: !Ref NodeMajor }
       LogsConfig:
         CloudWatchLogs: { Status: ENABLED }
 
-  #############################################
-  # PR events -> dispatcher
-  #############################################
+  ############################################################
+  # PR events -> dispatcher (pins buildspec to destination commit)
+  ############################################################
   PullRequestCI:
     Type: AWS::Events::Rule
     Properties:
       Name: !Sub "${ProjectPrefix}-ci-pr"
-      Description: "Trigger CI on CodeCommit PR create/update to ${BranchName}"
+      Description: !Sub "Trigger CI on CodeCommit PR create/update to ${BranchName}"
       EventPattern:
         source: ["aws.codecommit"]
         detail-type: ["CodeCommit Pull Request State Change"]
         resources:
-          - !Sub "arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${ExistingRepoName}"
+          - !Sub "arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${RepoName}"
         detail:
           event:
             - pullRequestCreated
@@ -315,6 +236,7 @@ Resources:
               dstCommit: $.detail.destinationCommit
             InputTemplate: |
               {
+                "sourceVersion": "<dstCommit>",
                 "environmentVariablesOverride": [
                   {"name":"PR_ID","value":"<pr>","type":"PLAINTEXT"},
                   {"name":"SOURCE_COMMIT","value":"<srcCommit>","type":"PLAINTEXT"},
