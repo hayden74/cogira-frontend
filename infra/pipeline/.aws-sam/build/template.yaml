@@ -148,56 +148,44 @@ Resources:
       Source:
         Type: NO_SOURCE
         BuildSpec: "version: 0.2\nphases:\n  install:\n    runtime-versions:\n   \
-          \   nodejs: 20\n    commands:\n      - yum -y -q install jq >/dev/null\n\
-          \  build:\n    commands:\n      - echo \"Dispatching for PR $PR_ID on $REPO_NAME\"\
-          \n      - >\n        aws codecommit get-differences\n        --repository-name\
-          \ \"$REPO_NAME\"\n        --before-commit-specifier \"$DESTINATION_COMMIT\"\
-          \n        --after-commit-specifier  \"$SOURCE_COMMIT\"\n        --output\
-          \ json\n        | jq -r '.differences[]? | (.afterBlob.path // .beforeBlob.path)'\n\
-          \        | sort -u > /tmp/changed.txt\n      - echo \"Changed paths:\" &&\
-          \ cat /tmp/changed.txt || true\n      - export MAKE_DDB=\"ci-ddb-layer\"\
-          \n      - export MAKE_HELLO=\"ci-hello-lambda\"\n      - if grep -qE '^layers/ddb/'\
-          \ /tmp/changed.txt; then\n          echo \"Starting $CI_DDB for $MAKE_DDB\"\
-          ;\n          aws codebuild start-build --project-name \"$CI_DDB\" \\\n \
-          \           --source-version \"$SOURCE_COMMIT\" \\\n            --environment-variables-override\
-          \ \\\n              name=ENV,value=\"$CI_ENV\",type=PLAINTEXT \\\n     \
-          \         name=MAKE_TARGET,value=\"$MAKE_DDB\",type=PLAINTEXT;\n       \
-          \ else echo \"No ddb changes\"; fi\n      - if grep -qE '^functions/hello-lambda/'\
-          \ /tmp/changed.txt; then\n          echo \"Starting $CI_HELLO for $MAKE_HELLO\"\
-          ;\n          aws codebuild start-build --project-name \"$CI_HELLO\" \\\n\
-          \            --source-version \"$SOURCE_COMMIT\" \\\n            --environment-variables-override\
-          \ \\\n              name=ENV,value=\"$CI_ENV\",type=PLAINTEXT \\\n     \
-          \         name=MAKE_TARGET,value=\"$MAKE_HELLO\",type=PLAINTEXT;\n     \
-          \   else echo \"No hello-lambda changes\"; fi\n"
-      Environment:
-        Type: LINUX_CONTAINER
-        Image:
-          Fn::FindInMap:
-          - Images
-          - Standard
-          - Image
-        ComputeType: BUILD_GENERAL1_SMALL
-        EnvironmentVariables:
-        - Name: REPO_NAME
-          Value:
-            Ref: ExistingRepoName
-        - Name: BRANCH
-          Value:
-            Ref: BranchName
-        - Name: CI_ENV
-          Value:
-            Ref: CiEnv
-        - Name: CI_DDB
-          Value:
-            Ref: CiDdbLayerProject
-        - Name: CI_HELLO
-          Value:
-            Ref: CiHelloLambdaProject
-      TimeoutInMinutes: 10
-      QueuedTimeoutInMinutes: 10
-      LogsConfig:
-        CloudWatchLogs:
-          Status: ENABLED
+          \   nodejs: 20\n    commands:\n      - apt-get update -y && apt-get install\
+          \ -y jq\n    build:\n      commands:\n        - set -euo pipefail\n    \
+          \    - echo \"Dispatching for PR $PR_ID on $REPO_NAME\"\n        - >\n \
+          \         aws codecommit get-differences\n          --repository-name \"\
+          $REPO_NAME\"\n          --before-commit-specifier \"$DESTINATION_COMMIT\"\
+          \n          --after-commit-specifier  \"$SOURCE_COMMIT\"\n          --output\
+          \ json\n          | jq -r '.differences[]? | (.afterBlob.path // .beforeBlob.path)'\n\
+          \          | sort -u > /tmp/changed.txt\n        - echo \"Changed paths:\"\
+          \ && cat /tmp/changed.txt || true\n\n        # ddb worker\n        - |\n\
+          \          if grep -qE '^layers/ddb/' /tmp/changed.txt; then\n         \
+          \   echo \"Starting $CI_DDB for ci-ddb-layer\"\n            PAYLOAD=$(jq\
+          \ -n \\\n              --arg p  \"$CI_DDB\" \\\n              --arg sv \"\
+          $SOURCE_COMMIT\" \\\n              --arg env \"$CI_ENV\" \\\n          \
+          \    --arg mt \"ci-ddb-layer\" \\\n              '{projectName:$p, sourceVersion:$sv,\n\
+          \                environmentVariablesOverride:[\n                  {name:\"\
+          ENV\", value:$env, type:\"PLAINTEXT\"},\n                  {name:\"MAKE_TARGET\"\
+          , value:$mt, type:\"PLAINTEXT\"}]}')\n            aws codebuild start-build\
+          \ --cli-input-json \"$PAYLOAD\"\n          else\n            echo \"No ddb\
+          \ changes\"\n          fi\n\n        # hello worker\n        - |\n     \
+          \     if grep -qE '^functions/hello-lambda/' /tmp/changed.txt; then\n  \
+          \          echo \"Starting $CI_HELLO for ci-hello-lambda\"\n           \
+          \ PAYLOAD=$(jq -n \\\n              --arg p  \"$CI_HELLO\" \\\n        \
+          \      --arg sv \"$SOURCE_COMMIT\" \\\n              --arg env \"$CI_ENV\"\
+          \ \\\n              --arg mt \"ci-hello-lambda\" \\\n              '{projectName:$p,\
+          \ sourceVersion:$sv,\n                environmentVariablesOverride:[\n \
+          \                 {name:\"ENV\", value:$env, type:\"PLAINTEXT\"},\n    \
+          \              {name:\"MAKE_TARGET\", value:$mt, type:\"PLAINTEXT\"}]}')\n\
+          \            aws codebuild start-build --cli-input-json \"$PAYLOAD\"\n \
+          \         else\n            echo \"No hello-lambda changes\"\n         \
+          \ fi\n\n          \n          Environment:\n            Type: LINUX_CONTAINER\n\
+          \            Image: !FindInMap [Images, Standard, Image]\n            ComputeType:\
+          \ BUILD_GENERAL1_SMALL\n            EnvironmentVariables:\n            \
+          \  - { Name: REPO_NAME, Value: !Ref ExistingRepoName }\n              -\
+          \ { Name: BRANCH, Value: !Ref BranchName }\n              - { Name: CI_ENV,\
+          \ Value: !Ref CiEnv }\n              - { Name: CI_DDB, Value: !Ref CiDdbLayerProject\
+          \ }\n              - { Name: CI_HELLO, Value: !Ref CiHelloLambdaProject\
+          \ }\n          TimeoutInMinutes: 10\n          QueuedTimeoutInMinutes: 10\n\
+          \          LogsConfig:\n            CloudWatchLogs: { Status: ENABLED }\n"
   CiDdbLayerProject:
     Type: AWS::CodeBuild::Project
     Properties:
@@ -214,9 +202,10 @@ Resources:
         GitCloneDepth: 1
         BuildSpec: "version: 0.2\nphases:\n  install:\n    runtime-versions:\n   \
           \   nodejs: 20\n    commands:\n      - python3 -m pip install --upgrade\
-          \ pip >/dev/null\n      - python3 -m pip install aws-sam-cli >/dev/null\n\
-          \      - npm -v || true\n  build:\n    commands:\n      - echo \"Root make\
-          \ target: $MAKE_TARGET (ENV=$ENV)\"\n      - make -e $MAKE_TARGET\n"
+          \ pip\n      - python3 -m pip install --user aws-sam-cli\n      - export\
+          \ PATH=\"$PATH:/root/.local/bin\"\n      - sam --version\n      - npm -v\
+          \ || true\n  build:\n    commands:\n      - echo \"Root make target: $MAKE_TARGET\
+          \ (ENV=$ENV)\"\n      - make -e $MAKE_TARGET\n"
       Artifacts:
         Type: NO_ARTIFACTS
       Environment:
@@ -252,8 +241,9 @@ Resources:
         GitCloneDepth: 1
         BuildSpec: "version: 0.2\nphases:\n  install:\n    runtime-versions:\n   \
           \   nodejs: 20\n    commands:\n      - python3 -m pip install --upgrade\
-          \ pip >/dev/null\n      - python3 -m pip install aws-sam-cli >/dev/null\n\
-          \  build:\n    commands:\n      - echo \"Root make target: $MAKE_TARGET\
+          \ pip\n      - python3 -m pip install --user aws-sam-cli\n      - export\
+          \ PATH=\"$PATH:/root/.local/bin\"\n      - sam --version\n      - npm -v\
+          \ || true\n  build:\n    commands:\n      - echo \"Root make target: $MAKE_TARGET\
           \ (ENV=$ENV)\"\n      - make -e $MAKE_TARGET\n"
       Artifacts:
         Type: NO_ARTIFACTS
