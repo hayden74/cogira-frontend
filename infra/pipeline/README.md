@@ -13,3 +13,6 @@ Console checklist (one time)
 - Parameters: ExistingRepoName=cogira-backend, etc.
 
 4. Create stack.
+
+error
+Property validation failure: [Encountered unsupported properties in {/}: [BuildSpec]]
