@@ -23,7 +23,7 @@ Mappings:
       Image: "aws/codebuild/standard:7.0"
 
 Resources:
-  # Optional helper param (reference only)
+  # Optional helper param (reference only )
   RepoArn:
     Type: AWS::SSM::Parameter
     Properties:
