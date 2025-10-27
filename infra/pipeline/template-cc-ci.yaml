@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: 2010-09-09
 Transform: AWS::Serverless-2016-10-31
-Description: "Path-aware CI for multi-stack"
+Description: "Path-aware CI for multi-stack (generic function worker + ddb layer worker)"
 
 Parameters:
   RepoName:
@@ -16,9 +16,6 @@ Parameters:
     Type: String
     Default: dev
     Description: "ENV passed to root Makefile (loads env/<ENV>.env)"
-  NodeMajor:
-    Type: Number
-    Default: 20
 
 Mappings:
   Images:
@@ -96,7 +93,7 @@ Resources:
                 Action: codebuild:StartBuild
                 Resource:
                   - !GetAtt CiDdbLayerProject.Arn
-                  - !GetAtt CiHelloLambdaProject.Arn
+                  - !GetAtt CiFunctionWorkerProject.Arn
 
   CiWorkerRole:
     Type: AWS::IAM::Role
@@ -132,6 +129,27 @@ Resources:
                 Resource: !Sub "arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${RepoName}"
 
   ############################################################
+  # CloudWatch Log Groups (24-hour retention)
+  ############################################################
+  DispatchLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/codebuild/${ProjectPrefix}-ci-dispatch"
+      RetentionInDays: 1
+
+  DdbWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/codebuild/${ProjectPrefix}-ci-layers-ddb"
+      RetentionInDays: 1
+
+  FuncWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/codebuild/${ProjectPrefix}-ci-functions-generic"
+      RetentionInDays: 1
+
+  ############################################################
   # CodeBuild projects
   ############################################################
   CiDispatchProject:
@@ -154,13 +172,15 @@ Resources:
           - { Name: BRANCH, Value: !Ref BranchName }
           - { Name: CI_ENV, Value: !Ref CiEnv }
           - { Name: CI_DDB, Value: !Ref CiDdbLayerProject }
-          - { Name: CI_HELLO, Value: !Ref CiHelloLambdaProject }
-          - { Name: NODE_MAJOR, Value: !Ref NodeMajor }
+          - { Name: CI_FUNC, Value: !Ref CiFunctionWorkerProject }
       TimeoutInMinutes: 10
       QueuedTimeoutInMinutes: 10
       LogsConfig:
-        CloudWatchLogs: { Status: ENABLED }
+        CloudWatchLogs:
+          Status: ENABLED
+          GroupName: !Ref DispatchLogGroup
 
+  # Fixed worker for the shared DDB layer
   CiDdbLayerProject:
     Type: AWS::CodeBuild::Project
     Properties:
@@ -179,14 +199,16 @@ Resources:
         EnvironmentVariables:
           - { Name: ENV, Value: !Ref CiEnv }
           - { Name: MAKE_TARGET, Value: "ci-ddb-layer" }
-          - { Name: NODE_MAJOR, Value: !Ref NodeMajor }
       LogsConfig:
-        CloudWatchLogs: { Status: ENABLED }
+        CloudWatchLogs:
+          Status: ENABLED
+          GroupName: !Ref DdbWorkerLogGroup
 
-  CiHelloLambdaProject:
+  # Generic worker for ANY function under functions/<name>/
+  CiFunctionWorkerProject:
     Type: AWS::CodeBuild::Project
     Properties:
-      Name: !Sub "${ProjectPrefix}-ci-functions-hello"
+      Name: !Sub "${ProjectPrefix}-ci-functions-generic"
       ServiceRole: !GetAtt CiWorkerRole.Arn
       Artifacts: { Type: NO_ARTIFACTS }
       Source:
@@ -200,10 +222,11 @@ Resources:
         ComputeType: BUILD_GENERAL1_SMALL
         EnvironmentVariables:
           - { Name: ENV, Value: !Ref CiEnv }
-          - { Name: MAKE_TARGET, Value: "ci-hello-lambda" }
-          - { Name: NODE_MAJOR, Value: !Ref NodeMajor }
+          - { Name: MAKE_TARGET, Value: "ci-function" } # function name injected per-build
       LogsConfig:
-        CloudWatchLogs: { Status: ENABLED }
+        CloudWatchLogs:
+          Status: ENABLED
+          GroupName: !Ref FuncWorkerLogGroup
 
   ############################################################
   # PR events -> dispatcher (pins buildspec to destination commit)
@@ -247,4 +270,4 @@ Resources:
 Outputs:
   DispatchProject: { Value: !Ref CiDispatchProject }
   WorkerDdb: { Value: !Ref CiDdbLayerProject }
-  WorkerHello: { Value: !Ref CiHelloLambdaProject }
+  WorkerFunction: { Value: !Ref CiFunctionWorkerProject }

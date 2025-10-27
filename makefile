@@ -33,12 +33,10 @@ ci-ddb-layer:
 	$(MAKE) -C layers/ddb build
 	sam validate -t layers/ddb/template.yaml
 
-ci-hello-lambda:
-	@echo "[CI] hello-lambda validate+build (ENV=$(ENV))"
-	$(MAKE) -C functions/hello-lambda build
-	sam validate -t functions/hello-lambda/template.yaml
+ci-function:
+	@test -n "$(FUNCTION_NAME)" || (echo "FUNCTION_NAME is required" && exit 1)
+	@echo "[CI] function $(FUNCTION_NAME) validate+build (ENV=$(ENV))"
+	$(MAKE) -C functions/$(FUNCTION_NAME) build
+	sam validate -t functions/$(FUNCTION_NAME)/template.yaml
 
-# convenience
-ci-all: ci-ddb-layer ci-hello-lambda
-
-.PHONY: all functions layers stacks hello-lambda ddb-layer ci-ddb-layer ci-hello-lambda ci-all
+.PHONY: all functions layers stacks hello-lambda ddb-layer ci-ddb-layer ci-function

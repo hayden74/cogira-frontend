@@ -5,51 +5,59 @@ phases:
       nodejs: 20
     commands:
       - apt-get update -y && apt-get install -y jq
-      - aws --version
   build:
     commands:
       - set -eu
       - |
-        CHANGED=$(aws codecommit get-differences \
-          --repository-name "$REPO_NAME" \
-          --before-commit-specifier "$DESTINATION_COMMIT" \
-          --after-commit-specifier  "$SOURCE_COMMIT" \
-          --output json | jq -r '.differences[]? | (.afterBlob.path // .beforeBlob.path)')
-        printf "%s\n" "$CHANGED" | sort -u > /tmp/changed.txt
+        CHANGED="$(aws codecommit get-differences \
+          --repository-name "${REPO_NAME}" \
+          --before-commit-specifier "${DESTINATION_COMMIT}" \
+          --after-commit-specifier  "${SOURCE_COMMIT}" \
+          --output json | jq -r '.differences[]? | (.afterBlob.path // .beforeBlob.path)')"
+        printf "%s\n" "${CHANGED}" | sort -u > /tmp/changed.txt
         echo "Changed paths:"; cat /tmp/changed.txt || true
 
-      # ddb worker
+      # Load the trusted worker buildspec from THIS checkout (pinned to dstCommit/main)
+      - |
+        # This file must exist in the repo at the destination commit
+        test -f pipeline/ci-worker.yml
+        # jq --rawfile reads the file contents verbatim for buildspecOverride
+        :
+
+      # ----- layer (fixed)
       - |
         if grep -qE '^layers/ddb/' /tmp/changed.txt; then
           jq -n \
-            --arg p "$CI_DDB" \
-            --arg sv "$SOURCE_COMMIT" \
-            --arg env "$CI_ENV" \
-            --arg mt "ci-ddb-layer" \
-            '{projectName:$p, sourceVersion:$sv,
+            --arg p  "${CI_DDB}" \
+            --arg sv "${SOURCE_COMMIT}" \
+            --rawfile bs pipeline/ci-worker.yml \
+            --arg env "${CI_ENV}" \
+            --arg mt  "ci-ddb-layer" \
+            '{projectName:$p, sourceVersion:$sv, buildspecOverride:$bs,
               environmentVariablesOverride:[
                 {name:"ENV", value:$env, type:"PLAINTEXT"},
                 {name:"MAKE_TARGET", value:$mt, type:"PLAINTEXT"}]}' \
             > /tmp/payload.json
           aws codebuild start-build --cli-input-json file:///tmp/payload.json
-        else
-          echo "No ddb changes"
         fi
 
-      # hello worker
+      # ----- functions (generic) – start one build per function folder changed
       - |
-        if grep -qE '^functions/hello-lambda/' /tmp/changed.txt; then
+        FUNCS=$(awk -F/ '/^functions\/[^/]+\// {print $2}' /tmp/changed.txt | sort -u)
+        for f in $FUNCS; do
+          echo "Starting function CI for: $f"
           jq -n \
-            --arg p "$CI_HELLO" \
-            --arg sv "$SOURCE_COMMIT" \
-            --arg env "$CI_ENV" \
-            --arg mt "ci-hello-lambda" \
-            '{projectName:$p, sourceVersion:$sv,
+            --arg p  "${CI_FUNC}" \
+            --arg sv "${SOURCE_COMMIT}" \
+            --rawfile bs pipeline/ci-worker.yml \
+            --arg env "${CI_ENV}" \
+            --arg mt  "ci-function" \
+            --arg fn  "$f" \
+            '{projectName:$p, sourceVersion:$sv, buildspecOverride:$bs,
               environmentVariablesOverride:[
                 {name:"ENV", value:$env, type:"PLAINTEXT"},
-                {name:"MAKE_TARGET", value:$mt, type:"PLAINTEXT"}]}' \
+                {name:"MAKE_TARGET", value:$mt, type:"PLAINTEXT"},
+                {name:"FUNCTION_NAME", value:$fn, type:"PLAINTEXT"}]}' \
             > /tmp/payload.json
           aws codebuild start-build --cli-input-json file:///tmp/payload.json
-        else
-          echo "No hello-lambda changes"
-        fi
+        done

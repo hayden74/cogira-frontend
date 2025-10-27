@@ -1,6 +1,4 @@
-
 version: 0.2
-
 phases:
   install:
     runtime-versions:
@@ -9,7 +7,7 @@ phases:
       - python3 -m pip install --upgrade pip
       - python3 -m pip install --user aws-sam-cli
       - export PATH="$PATH:/root/.local/bin"
-      - npm i -g esbuild@0.21.5
+      - command -v esbuild >/dev/null 2>&1 || npm i -g esbuild@0.21.5
       - esbuild --version
 
   build:
