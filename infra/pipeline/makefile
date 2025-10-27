@@ -1,11 +1,14 @@
 STACKNAME ?= $(PROJECT_PREFIX)-cogira-frontend-pipeline
+TEMPLATE ?= template-cc.yaml
 
 build:
-	sam build
+	sam build --template-file $(TEMPLATE)
+
 
 deploy:
-	sam build && \
+	sam build --template-file $(TEMPLATE) && \
 	sam deploy \
+	  --template-file $(TEMPLATE) \
 	  --profile $(ENV) \
 	  --stack-name $(STACKNAME) \
     --s3-prefix $(PROJECT_PREFIX)/cogira-frontend-pipeline \

@@ -1,0 +1,90 @@
+AWSTemplateFormatVersion: 2010-09-09
+Transform: AWS::Serverless-2016-10-31
+Description: "CodeCommit + Deploy Role + Artifacts bucket for cogira-frontend PoC"
+
+Parameters:
+  RepoFullName:
+    Type: String
+    Default: hayden74/cogira-frontend
+    Description: "Repository in owner/name format (owner ignored for CodeCommit name)"
+  BranchName:
+    Type: String
+    Default: main
+  ArtifactBucketName:
+    Type: String
+    Default: cogira-frontend-bucket
+    Description: "S3 bucket for SAM packaging/artifacts (must be globally unique)"
+
+Resources:
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref ArtifactBucketName
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration: { Status: Enabled }
+      Tags:
+        - Key: Name
+          Value: cogira-frontend-artifacts
+
+  ArtifactBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ArtifactBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !Sub "${ArtifactBucket.Arn}"
+              - !Sub "${ArtifactBucket.Arn}/*"
+            Condition:
+              Bool: { "aws:SecureTransport": false }
+
+  # CodeCommit repository (repository name derived from RepoFullName after the slash)
+  CodeCommitRepository:
+    Type: AWS::CodeCommit::Repository
+    Properties:
+      RepositoryName: !Select [1, !Split ["/", !Ref RepoFullName]]
+      RepositoryDescription: !Sub "CodeCommit repo for ${RepoFullName}"
+
+  # Role assumed by AWS services (e.g., CodePipeline/CodeBuild) for deployments
+  CodeCommitDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: cogira-frontend-codecommit-deploy-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: "sts:AssumeRole"
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+                - codebuild.amazonaws.com
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+      Description: !Sub "PoC: role assumed by CodePipeline/CodeBuild for ${RepoFullName} on ${BranchName}"
+      Tags:
+        - Key: Project
+          Value: cogira-frontend
+
+Outputs:
+  DeployRoleArn:
+    Description: "IAM role to assume from CodePipeline/CodeBuild"
+    Value: !GetAtt CodeCommitDeployRole.Arn
+  ArtifactBucket:
+    Description: "S3 bucket for SAM packaging"
+    Value: !Ref ArtifactBucket
+  RepositoryName:
+    Description: "CodeCommit repository name"
+    Value: !GetAtt CodeCommitRepository.Name

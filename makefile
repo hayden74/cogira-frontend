@@ -28,4 +28,17 @@ layers: ddb-layer
 stacks: layers
 all: stacks functions
 
-.PHONY: all functions layers stacks hello-lambda ddb-layer
+ci-ddb-layer:
+	@echo "[CI] ddb-layer validate+build (ENV=$(ENV))"
+	$(MAKE) -C layers/ddb build
+	sam validate -t layers/ddb/template.yaml
+
+ci-hello-lambda:
+	@echo "[CI] hello-lambda validate+build (ENV=$(ENV))"
+	$(MAKE) -C functions/hello-lambda build
+	sam validate -t functions/hello-lambda/template.yaml
+
+# convenience
+ci-all: ci-ddb-layer ci-hello-lambda
+
+.PHONY: all functions layers stacks hello-lambda ddb-layer ci-ddb-layer ci-hello-lambda ci-all
