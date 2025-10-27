@@ -129,27 +129,6 @@ Resources:
                 Resource: !Sub "arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${RepoName}"
 
   ############################################################
-  # CloudWatch Log Groups (24-hour retention)
-  ############################################################
-  DispatchLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "/aws/codebuild/${ProjectPrefix}-ci-dispatch"
-      RetentionInDays: 1
-
-  DdbWorkerLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "/aws/codebuild/${ProjectPrefix}-ci-layers-ddb"
-      RetentionInDays: 1
-
-  FuncWorkerLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Sub "/aws/codebuild/${ProjectPrefix}-ci-functions-generic"
-      RetentionInDays: 1
-
-  ############################################################
   # CodeBuild projects
   ############################################################
   CiDispatchProject:
@@ -178,7 +157,6 @@ Resources:
       LogsConfig:
         CloudWatchLogs:
           Status: ENABLED
-          GroupName: !Ref DispatchLogGroup
 
   # Fixed worker for the shared DDB layer
   CiDdbLayerProject:
@@ -202,7 +180,6 @@ Resources:
       LogsConfig:
         CloudWatchLogs:
           Status: ENABLED
-          GroupName: !Ref DdbWorkerLogGroup
 
   # Generic worker for ANY function under functions/<name>/
   CiFunctionWorkerProject:
@@ -226,7 +203,6 @@ Resources:
       LogsConfig:
         CloudWatchLogs:
           Status: ENABLED
-          GroupName: !Ref FuncWorkerLogGroup
 
   ############################################################
   # PR events -> dispatcher (pins buildspec to destination commit)
