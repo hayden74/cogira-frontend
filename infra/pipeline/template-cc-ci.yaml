@@ -18,7 +18,7 @@ Parameters:
     Description: "ENV passed to root Makefile (loads env/<ENV>.env)"
   NodeMajor:
     Type: Number
-    Default: 20
+    Default: 22
 
 Mappings:
   Images:
