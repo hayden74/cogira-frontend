@@ -289,14 +289,36 @@ Resources:
                   - cloudformation:ExecuteChangeSet
                   - cloudformation:CreateStack
                   - cloudformation:UpdateStack
-                  - cloudformation:Describe*
                 Resource: !Sub "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ProjectPrefix}-*/*"
+              - Effect: Allow
+                Action:
+                  - cloudformation:Describe*
+                  - cloudformation:List*
+                  - cloudformation:GetTemplate
+                Resource: "*"
+        - PolicyName: IamForCfn
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:PassRole
+                Resource: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${ProjectPrefix}-*"
+                Condition:
+                  StringEquals:
+                    iam:PassedToService: lambda.amazonaws.com
         - PolicyName: SamArtifactsS3
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
               - Effect: Allow
-                Action: ["s3:PutObject", "s3:GetObject", "s3:ListBucket"]
+                Action: ["s3:CreateBucket", "s3:PutObject", "s3:GetObject", "s3:ListBucket"]
                 Resource: "*"
 
   CiDeployerProject:
