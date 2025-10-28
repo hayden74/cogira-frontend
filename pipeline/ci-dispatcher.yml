@@ -24,22 +24,27 @@ phases:
         # jq --rawfile reads the file contents verbatim for buildspecOverride
         :
 
-      # ----- layer (fixed)
+      # ----- layers: start one worker per changed layer directory
       - |
-        # Trigger when ANY change occurs under layers/
         if grep -qE '^layers/' /tmp/changed.txt; then
-          jq -n \
-            --arg p  "${CI_DDB}" \
-            --arg sv "${SOURCE_COMMIT}" \
-            --rawfile bs pipeline/ci-worker.yml \
-            --arg env "${CI_ENV}" \
-            --arg mt  "ci-ddb-layer" \
-            '{projectName:$p, sourceVersion:$sv, buildspecOverride:$bs,
-              environmentVariablesOverride:[
-                {name:"ENV", value:$env, type:"PLAINTEXT"},
-                {name:"MAKE_TARGET", value:$mt, type:"PLAINTEXT"}]}' \
-            > /tmp/payload.json
-          aws codebuild start-build --cli-input-json file:///tmp/payload.json
+          LAYERS=$(awk -F/ '/^layers\/[^/]+\// {print $2}' /tmp/changed.txt | sort -u)
+          for l in $LAYERS; do
+            echo "Starting layer CI for: $l"
+            jq -n \
+              --arg p  "${CI_DDB}" \
+              --arg sv "${SOURCE_COMMIT}" \
+              --rawfile bs pipeline/ci-worker.yml \
+              --arg env "${CI_ENV}" \
+              --arg mt  "ci-layer" \
+              --arg ln  "$l" \
+              '{projectName:$p, sourceVersion:$sv, buildspecOverride:$bs,
+                environmentVariablesOverride:[
+                  {name:"ENV", value:$env, type:"PLAINTEXT"},
+                  {name:"MAKE_TARGET", value:$mt, type:"PLAINTEXT"},
+                  {name:"LAYER_NAME", value:$ln, type:"PLAINTEXT"}]}' \
+              > /tmp/payload.json
+            aws codebuild start-build --cli-input-json file:///tmp/payload.json
+          done
         fi
 
       # ----- functions (generic) – start one build per function folder changed

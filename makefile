@@ -33,6 +33,12 @@ ci-ddb-layer:
 	$(MAKE) -C layers/ddb build
 	sam validate -t layers/ddb/template.yaml
 
+ci-layer:
+	@test -n "$(LAYER_NAME)" || (echo "LAYER_NAME is required" && exit 1)
+	@echo "[CI] layer $(LAYER_NAME) validate+build (ENV=$(ENV))"
+	$(MAKE) -C layers/$(LAYER_NAME) build
+	sam validate -t layers/$(LAYER_NAME)/template.yaml
+
 ci-function:
 	@test -n "$(FUNCTION_NAME)" || (echo "FUNCTION_NAME is required" && exit 1)
 	@echo "[CI] function $(FUNCTION_NAME) validate+build (ENV=$(ENV))"
@@ -48,4 +54,4 @@ cd-function:
 	$(MAKE) -C functions/$(FUNCTION_NAME) deploy
 
 
-.PHONY: all functions layers stacks hello-lambda ddb-layer ci-ddb-layer ci-function
+.PHONY: all functions layers stacks hello-lambda ddb-layer ci-ddb-layer ci-function ci-layer

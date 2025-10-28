@@ -28,6 +28,10 @@ phases:
         if [ "${MAKE_TARGET}" = "ci-ddb-layer" ]; then
           TEMPLATE="layers/ddb/template.yaml"
           STACK_KEY="layers/ddb"
+        elif [ "${MAKE_TARGET}" = "ci-layer" ]; then
+          test -n "${LAYER_NAME:-}" || { echo "LAYER_NAME required"; exit 1; }
+          TEMPLATE="layers/${LAYER_NAME}/template.yaml"
+          STACK_KEY="layers/${LAYER_NAME}"
         elif [ "${MAKE_TARGET}" = "ci-function" ]; then
           test -n "${FUNCTION_NAME:-}" || { echo "FUNCTION_NAME required"; exit 1; }
           TEMPLATE="functions/${FUNCTION_NAME}/template.yaml"

@@ -299,58 +299,58 @@ Resources:
                 Action: ["s3:PutObject", "s3:GetObject", "s3:ListBucket"]
                 Resource: "*"
 
-CiDeployerProject:
-  Type: AWS::CodeBuild::Project
-  Properties:
-    Name: !Sub "${ProjectPrefix}-ci-deploy"
-    ServiceRole: !GetAtt CiDeployerRole.Arn
-    Artifacts: { Type: NO_ARTIFACTS }
-    Source:
-      Type: CODECOMMIT
-      Location: !Sub "https://git-codecommit.${AWS::Region}.amazonaws.com/v1/repos/${RepoName}"
-      GitCloneDepth: 1
-      BuildSpec: "pipeline/ci-deploy.yml"
-    Environment:
-      Type: LINUX_CONTAINER
-      Image: !FindInMap [Images, Standard, Image]
-      ComputeType: BUILD_GENERAL1_SMALL
-    TimeoutInMinutes: 20
-    LogsConfig:
-      CloudWatchLogs: { Status: ENABLED }
-
-  MainBranchCD:
-    Type: AWS::Events::Rule
+  CiDeployerProject:
+    Type: AWS::CodeBuild::Project
     Properties:
-      Name: !Sub "${ProjectPrefix}-cd-main"
-      Description: "Auto-deploy on merge to main"
-      EventPattern:
-        source: ["aws.codecommit"]
-        detail-type: ["CodeCommit Repository State Change"]
-        resources:
-          - !Sub "arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${RepoName}"
-        detail:
-          event: ["referenceUpdated"]
-          referenceFullName: ["refs/heads/${BranchName}"] # main by default
-      Targets:
-        - Id: Deployer
-          Arn: !GetAtt CiDeployerProject.Arn
-          RoleArn: !GetAtt EventsToCodeBuildRole.Arn
-          InputTransformer:
-            InputPathsMap:
-              commit: $.detail.commitId
-              old: $.detail.oldCommitId
-              ref: $.detail.referenceFullName
-            InputTemplate: |
-              {
-                "environmentVariablesOverride": [
-                  {"name":"COMMIT_ID","value":"<commit>","type":"PLAINTEXT"},
-                  {"name":"OLD_COMMIT","value":"<old>","type":"PLAINTEXT"},
-                  {"name":"REF","value":"<ref>","type":"PLAINTEXT"},
-                  {"name":"ENV","value":"${CiEnv}","type":"PLAINTEXT"},
-                  {"name":"REPO_NAME","value":"${RepoName}","type":"PLAINTEXT"},
-                  {"name":"PROJECT_PREFIX","value":"${ProjectPrefix}","type":"PLAINTEXT"}
-                ]
-              }
+      Name: !Sub "${ProjectPrefix}-ci-deploy"
+      ServiceRole: !GetAtt CiDeployerRole.Arn
+      Artifacts: { Type: NO_ARTIFACTS }
+      Source:
+        Type: CODECOMMIT
+        Location: !Sub "https://git-codecommit.${AWS::Region}.amazonaws.com/v1/repos/${RepoName}"
+        GitCloneDepth: 1
+        BuildSpec: "pipeline/ci-deploy.yml"
+      Environment:
+        Type: LINUX_CONTAINER
+        Image: !FindInMap [Images, Standard, Image]
+        ComputeType: BUILD_GENERAL1_SMALL
+      TimeoutInMinutes: 20
+      LogsConfig:
+        CloudWatchLogs: { Status: ENABLED }
+
+    MainBranchCD:
+      Type: AWS::Events::Rule
+      Properties:
+        Name: !Sub "${ProjectPrefix}-cd-main"
+        Description: "Auto-deploy on merge to main"
+        EventPattern:
+          source: ["aws.codecommit"]
+          detail-type: ["CodeCommit Repository State Change"]
+          resources:
+            - !Sub "arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${RepoName}"
+          detail:
+            event: ["referenceUpdated"]
+            referenceFullName: ["refs/heads/${BranchName}"] # main by default
+        Targets:
+          - Id: Deployer
+            Arn: !GetAtt CiDeployerProject.Arn
+            RoleArn: !GetAtt EventsToCodeBuildRole.Arn
+            InputTransformer:
+              InputPathsMap:
+                commit: $.detail.commitId
+                old: $.detail.oldCommitId
+                ref: $.detail.referenceFullName
+              InputTemplate: |
+                {
+                  "environmentVariablesOverride": [
+                    {"name":"COMMIT_ID","value":"<commit>","type":"PLAINTEXT"},
+                    {"name":"OLD_COMMIT","value":"<old>","type":"PLAINTEXT"},
+                    {"name":"REF","value":"<ref>","type":"PLAINTEXT"},
+                    {"name":"ENV","value":"${CiEnv}","type":"PLAINTEXT"},
+                    {"name":"REPO_NAME","value":"${RepoName}","type":"PLAINTEXT"},
+                    {"name":"PROJECT_PREFIX","value":"${ProjectPrefix}","type":"PLAINTEXT"}
+                  ]
+                }
 
 Outputs:
   DispatchProject: { Value: !Ref CiDispatchProject }

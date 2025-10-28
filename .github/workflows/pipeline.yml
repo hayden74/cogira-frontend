@@ -81,8 +81,8 @@ jobs:
             echo "$CHANGED"
 
             TARGETS=""
-            # Trigger layer build on ANY change under layers/
-            echo "$CHANGED" | grep -qE '^layers/' && TARGETS="$TARGETS ddb-layer" || true
+            # Trigger on DDB layer only (GH path remains single-layer)
+            echo "$CHANGED" | grep -qE '^layers/ddb/' && TARGETS="$TARGETS ddb-layer" || true
             echo "$CHANGED" | grep -qE '^functions/hello-lambda/' && TARGETS="$TARGETS hello-lambda" || true
 
             # order: layer -> function
