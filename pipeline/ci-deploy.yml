@@ -21,14 +21,10 @@ phases:
         printf "%s\n" "${CHANGED}" | sort -u > /tmp/changed.txt || true
         echo "Changed paths:"; cat /tmp/changed.txt || true
 
-      # Deploy each changed layer separately
+      # Deploy shared DDB layer if touched
       - |
-        if grep -qE '^layers/' /tmp/changed.txt; then
-          LAYERS=$(awk -F/ '/^layers\/[^/]+\// {print $2}' /tmp/changed.txt | sort -u)
-          for l in $LAYERS; do
-            echo "Deploying layer: $l"
-            make -e -C "layers/$l" deploy
-          done
+        if grep -qE '^layers/ddb/' /tmp/changed.txt; then
+          make -e cd-ddb-layer
         fi
 
       # Deploy each changed function
