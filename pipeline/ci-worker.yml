@@ -9,9 +9,45 @@ phases:
       - export PATH="$PATH:/root/.local/bin"
       - command -v esbuild >/dev/null 2>&1 || npm i -g esbuild@0.21.5
       - esbuild --version
-
+      - apt-get update -y && apt-get install -y jq zip
   build:
     commands:
-      - >
-        echo "Root make target: $MAKE_TARGET (ENV=$ENV)"
-      - make -e $MAKE_TARGET
+      - set -eu
+      - echo "Root make target: $MAKE_TARGET (ENV=$ENV)"
+      - make -e "$MAKE_TARGET"
+
+      # --- Package for CD (shared logic) ---
+      - source "env/${ENV}.env"
+      - : "${ARTIFACT_BUCKET:?ARTIFACT_BUCKET is required in env/${ENV}.env}"
+      - : "${CD_PREFIX:?CD_PREFIX is required in env/${ENV}.env}"
+      - COMMIT="${SOURCE_COMMIT:-manual}"
+      - mkdir -p /tmp/cd
+
+      # Identify template path & logical stack key
+      - |
+        if [ "${MAKE_TARGET}" = "ci-ddb-layer" ]; then
+          TEMPLATE="layers/ddb/template.yaml"
+          STACK_KEY="layers/ddb"
+        elif [ "${MAKE_TARGET}" = "ci-function" ]; then
+          test -n "${FUNCTION_NAME:-}" || { echo "FUNCTION_NAME required"; exit 1; }
+          TEMPLATE="functions/${FUNCTION_NAME}/template.yaml"
+          STACK_KEY="functions/${FUNCTION_NAME}"
+        else
+          echo "No CD packaging for $MAKE_TARGET"; exit 0
+        fi
+
+      # sam package -> packaged.yaml (upload code to the SAME bucket you already use)
+      - OUTDIR="/tmp/cd/${STACK_KEY}"; mkdir -p "$OUTDIR"
+      - sam package --template-file "$TEMPLATE" \
+        --s3-bucket "$ARTIFACT_BUCKET" \
+        --s3-prefix "${PROJECT_PREFIX}/sam/${STACK_KEY}" \
+        --output-template-file "${OUTDIR}/packaged.yaml"
+
+      # Zip and upload to stable and versioned keys
+      - (cd "$OUTDIR" && zip -j cd-bundle.zip packaged.yaml)
+      - aws s3 cp "${OUTDIR}/cd-bundle.zip" "s3://${ARTIFACT_BUCKET}/${CD_PREFIX}/${STACK_KEY}/latest.zip"
+      - aws s3 cp "${OUTDIR}/cd-bundle.zip" "s3://${ARTIFACT_BUCKET}/${CD_PREFIX}/${STACK_KEY}/${COMMIT}.zip"
+artifacts:
+  files:
+    - "**/*"
+  discard-paths: yes

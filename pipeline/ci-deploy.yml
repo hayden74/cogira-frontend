@@ -1,0 +1,36 @@
+version: 0.2
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+    commands:
+      - python3 -m pip install --upgrade pip
+      - python3 -m pip install --user aws-sam-cli
+      - export PATH="$PATH:/root/.local/bin"
+      - apt-get update -y && apt-get install -y jq
+  build:
+    commands:
+      - set -eu
+      - echo "Deploying changes on $REF (OLD_COMMIT=$OLD_COMMIT → COMMIT_ID=$COMMIT_ID) ENV=$ENV"
+      - |
+        CHANGED="$(aws codecommit get-differences \
+          --repository-name "${REPO_NAME}" \
+          --before-commit-specifier "${OLD_COMMIT}" \
+          --after-commit-specifier  "${COMMIT_ID}" \
+          --output json | jq -r '.differences[]? | (.afterBlob.path // .beforeBlob.path)')"
+        printf "%s\n" "${CHANGED}" | sort -u > /tmp/changed.txt || true
+        echo "Changed paths:"; cat /tmp/changed.txt || true
+
+      # Deploy shared DDB layer if touched
+      - |
+        if grep -qE '^layers/ddb/' /tmp/changed.txt; then
+          make -e cd-ddb-layer
+        fi
+
+      # Deploy each changed function
+      - |
+        FUNCS=$(awk -F/ '/^functions\/[^/]+\// {print $2}' /tmp/changed.txt | sort -u)
+        for f in $FUNCS; do
+          echo "Deploying function: $f"
+          make -e cd-function FUNCTION_NAME="$f"
+        done

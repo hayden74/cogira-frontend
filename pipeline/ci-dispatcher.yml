@@ -26,7 +26,8 @@ phases:
 
       # ----- layer (fixed)
       - |
-        if grep -qE '^layers/ddb/' /tmp/changed.txt; then
+        # Trigger when ANY change occurs under layers/
+        if grep -qE '^layers/' /tmp/changed.txt; then
           jq -n \
             --arg p  "${CI_DDB}" \
             --arg sv "${SOURCE_COMMIT}" \
