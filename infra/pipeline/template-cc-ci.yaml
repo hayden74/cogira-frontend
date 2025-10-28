@@ -52,9 +52,7 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: codebuild:StartBuild
-                Resource:
-                  - !GetAtt CiDispatchProject.Arn
-                  - !GetAtt CiDeployerProject.Arn
+                Resource: !GetAtt CiDispatchProject.Arn
 
   CiDispatchRole:
     Type: AWS::IAM::Role
@@ -316,45 +314,14 @@ Resources:
         Type: LINUX_CONTAINER
         Image: !FindInMap [Images, Standard, Image]
         ComputeType: BUILD_GENERAL1_SMALL
+        EnvironmentVariables:
+          - { Name: ENV,            Value: !Ref CiEnv }
+          - { Name: REPO_NAME,      Value: !Ref RepoName }
+          - { Name: PROJECT_PREFIX, Value: !Ref ProjectPrefix }
+          - { Name: BRANCH,         Value: !Ref BranchName }
       TimeoutInMinutes: 20
       LogsConfig:
         CloudWatchLogs: { Status: ENABLED }
-
-  MainBranchCD:
-    Type: AWS::Events::Rule
-    Properties:
-      Name: !Sub "${ProjectPrefix}-cd-main"
-      Description: "Auto-deploy on merge to main"
-      EventPattern:
-        source: ["aws.codecommit"]
-        detail-type: ["CodeCommit Repository State Change"]
-        resources:
-          - !Sub "arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${RepoName}"
-        detail:
-          event: ["referenceUpdated"]
-          referenceType: ["branch"]
-          referenceName: ["${BranchName}"] # main by default
-      Targets:
-        - Id: Deployer
-          Arn: !GetAtt CiDeployerProject.Arn
-          RoleArn: !GetAtt EventsToCodeBuildRole.Arn
-          InputTransformer:
-            InputPathsMap:
-              commit: $.detail.commitId
-              old: $.detail.oldCommitId
-              refName: $.detail.referenceName
-            InputTemplate: |
-              {
-                "sourceVersion": "<commit>",
-                "environmentVariablesOverride": [
-                  {"name":"COMMIT_ID","value":"<commit>","type":"PLAINTEXT"},
-                  {"name":"OLD_COMMIT","value":"<old>","type":"PLAINTEXT"},
-                  {"name":"REF","value":"refs/heads/<refName>","type":"PLAINTEXT"},
-                  {"name":"ENV","value":"${CiEnv}","type":"PLAINTEXT"},
-                  {"name":"REPO_NAME","value":"${RepoName}","type":"PLAINTEXT"},
-                  {"name":"PROJECT_PREFIX","value":"${ProjectPrefix}","type":"PLAINTEXT"}
-                ]
-              }
 
 Outputs:
   DispatchProject: { Value: !Ref CiDispatchProject }
