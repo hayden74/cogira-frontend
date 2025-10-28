@@ -332,7 +332,8 @@ Resources:
           - !Sub "arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${RepoName}"
         detail:
           event: ["referenceUpdated"]
-          referenceFullName: ["refs/heads/${BranchName}"] # main by default
+          referenceType: ["branch"]
+          referenceName: ["${BranchName}"] # main by default
       Targets:
         - Id: Deployer
           Arn: !GetAtt CiDeployerProject.Arn
@@ -341,13 +342,14 @@ Resources:
             InputPathsMap:
               commit: $.detail.commitId
               old: $.detail.oldCommitId
-              ref: $.detail.referenceFullName
+              refName: $.detail.referenceName
             InputTemplate: |
               {
+                "sourceVersion": "<commit>",
                 "environmentVariablesOverride": [
                   {"name":"COMMIT_ID","value":"<commit>","type":"PLAINTEXT"},
                   {"name":"OLD_COMMIT","value":"<old>","type":"PLAINTEXT"},
-                  {"name":"REF","value":"<ref>","type":"PLAINTEXT"},
+                  {"name":"REF","value":"refs/heads/<refName>","type":"PLAINTEXT"},
                   {"name":"ENV","value":"${CiEnv}","type":"PLAINTEXT"},
                   {"name":"REPO_NAME","value":"${RepoName}","type":"PLAINTEXT"},
                   {"name":"PROJECT_PREFIX","value":"${ProjectPrefix}","type":"PLAINTEXT"}
