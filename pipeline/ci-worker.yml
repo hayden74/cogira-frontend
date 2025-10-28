@@ -9,7 +9,7 @@ phases:
       - export PATH="$PATH:/root/.local/bin"
       - command -v esbuild >/dev/null 2>&1 || npm i -g esbuild@0.21.5
       - esbuild --version
-      - apt-get update -y && apt-get install -y jq zip
+      - : # no apt-get; keep installs minimal
   build:
     commands:
       - set -eu

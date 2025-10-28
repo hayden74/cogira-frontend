@@ -7,7 +7,7 @@ phases:
       - python3 -m pip install --upgrade pip
       - python3 -m pip install --user aws-sam-cli
       - export PATH="$PATH:/root/.local/bin"
-      - apt-get update -y && apt-get install -y jq
+      - command -v jq >/dev/null 2>&1 || (echo "jq not found in image" && exit 1)
   build:
     commands:
       - set -eu
