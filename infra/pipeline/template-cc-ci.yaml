@@ -52,7 +52,9 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: codebuild:StartBuild
-                Resource: !GetAtt CiDispatchProject.Arn
+                Resource:
+                  - !GetAtt CiDispatchProject.Arn
+                  - !GetAtt CiDeployerProject.Arn
 
   CiDispatchRole:
     Type: AWS::IAM::Role
@@ -314,9 +316,9 @@ Resources:
         Type: LINUX_CONTAINER
         Image: !FindInMap [Images, Standard, Image]
         ComputeType: BUILD_GENERAL1_SMALL
-    TimeoutInMinutes: 20
-    LogsConfig:
-      CloudWatchLogs: { Status: ENABLED }
+      TimeoutInMinutes: 20
+      LogsConfig:
+        CloudWatchLogs: { Status: ENABLED }
 
   MainBranchCD:
     Type: AWS::Events::Rule
