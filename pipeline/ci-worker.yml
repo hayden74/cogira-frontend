@@ -12,8 +12,8 @@ phases:
       - : # no apt-get; keep installs minimal
   build:
     commands:
-      - set -eu
-      - echo "Root make target: $MAKE_TARGET (ENV=$ENV)"
+      - >
+        echo "Root make target: $MAKE_TARGET (ENV=$ENV)"
       - make -e "$MAKE_TARGET"
 artifacts:
   files:
