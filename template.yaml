@@ -1,0 +1,71 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Single modular-monolith Lambda with router and three domain handlers
+
+Globals:
+  Function:
+    Runtime: nodejs22.x
+    MemorySize: 128
+    Timeout: 10
+    CodeUri: ./src/
+    Tracing: Active
+
+Resources:
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      Description: Modular monolith API
+      CorsConfiguration:
+        AllowMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
+        AllowHeaders: ['*']
+        AllowOrigins: ['*']
+
+  ModularMonolith:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: index.handler
+      Events:
+        ApiProxy:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /{proxy+}
+            Method: ANY
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: "es2020"
+        Sourcemap: false
+        EntryPoints:
+          - index.ts
+        Format: esm
+        OutExtension:
+          - .js=.mjs
+
+
+Outputs:
+  HttpApiId:
+    Description: ID of the HTTP API
+    Value: !Ref HttpApi
+  HttpApiEndpoint:
+    Description: Base URL of the HTTP API
+    Value: !GetAtt HttpApi.ApiEndpoint
+  UsersEndpoint:
+    Description: Example endpoint for users routes
+    Value:
+      Fn::Sub:
+        - "${ApiEndpoint}/users"
+        - { ApiEndpoint: !GetAtt HttpApi.ApiEndpoint }
+  TasksEndpoint:
+    Description: Example endpoint for tasks routes
+    Value:
+      Fn::Sub:
+        - "${ApiEndpoint}/tasks"
+        - { ApiEndpoint: !GetAtt HttpApi.ApiEndpoint }
+  BoardsEndpoint:
+    Description: Example endpoint for boards routes
+    Value:
+      Fn::Sub:
+        - "${ApiEndpoint}/boards"
+        - { ApiEndpoint: !GetAtt HttpApi.ApiEndpoint }

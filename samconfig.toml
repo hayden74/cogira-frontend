@@ -1,0 +1,38 @@
+version = 0.1
+
+[default.build.parameters]
+use_container = false
+
+[default.deploy.parameters]
+stack_name = "cogira-backend"
+s3_prefix = "cogira/backend"
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = false
+resolve_s3 = true
+# profile = "default"        # uncomment and set if you use a named AWS CLI profile
+# region  = "us-east-1"      # optional; falls back to your CLI default
+
+[dev.build.parameters]
+use_container = false
+
+[dev.deploy.parameters]
+stack_name = "cogira-backend-dev"
+s3_prefix = "cogira/backend"
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = false
+resolve_s3 = true
+profile = "dev"
+region  = "us-east-1"
+
+[prod.build.parameters]
+use_container = false
+
+[prod.deploy.parameters]
+stack_name = "cogira-backend-prod"
+s3_prefix = "cogira/backend"
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = false
+resolve_s3 = true
+profile = "prod"         
+region  = "us-east-1"
+
