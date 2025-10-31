@@ -2,6 +2,12 @@ AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: Single modular-monolith Lambda with router and three domain handlers
 
+Parameters:
+  UsersTableName:
+    Type: String
+    Description: Name of the DynamoDB table used to store users
+    Default: UsersTable
+
 Globals:
   Function:
     Runtime: nodejs22.x
@@ -9,6 +15,9 @@ Globals:
     Timeout: 10
     CodeUri: ./src/
     Tracing: Active
+    Environment:
+      Variables:
+        USERS_TABLE: !Ref UsersTableName
 
 Resources:
   HttpApi:
@@ -16,33 +25,85 @@ Resources:
     Properties:
       Description: Modular monolith API
       CorsConfiguration:
-        AllowMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
-        AllowHeaders: ['*']
-        AllowOrigins: ['*']
+        AllowOrigins:
+          - "*"
+        AllowHeaders:
+          - Content-Type
+          - Authorization
+        AllowMethods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          - OPTIONS
+
+  UsersDynamoTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref UsersTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
 
   ModularMonolith:
     Type: AWS::Serverless::Function
     Properties:
       Handler: index.handler
       Events:
-        ApiProxy:
+        GetUsers:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
-            Path: /{proxy+}
-            Method: ANY
+            Path: /users
+            Method: GET
+        PostUsers:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /users
+            Method: POST
+        GetUserById:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /users/{id}
+            Method: GET
+        PutUserById:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /users/{id}
+            Method: PUT
+        PatchUserById:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /users/{id}
+            Method: PATCH
+        DeleteUserById:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /users/{id}
+            Method: DELETE
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UsersTableName
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
-        Target: "es2020"
+        Platform: node
+        Target: "node22"
         Sourcemap: false
         EntryPoints:
           - index.ts
-        Format: esm
-        OutExtension:
-          - .js=.mjs
-
+        Format: cjs
 
 Outputs:
   HttpApiId:
@@ -56,16 +117,4 @@ Outputs:
     Value:
       Fn::Sub:
         - "${ApiEndpoint}/users"
-        - { ApiEndpoint: !GetAtt HttpApi.ApiEndpoint }
-  TasksEndpoint:
-    Description: Example endpoint for tasks routes
-    Value:
-      Fn::Sub:
-        - "${ApiEndpoint}/tasks"
-        - { ApiEndpoint: !GetAtt HttpApi.ApiEndpoint }
-  BoardsEndpoint:
-    Description: Example endpoint for boards routes
-    Value:
-      Fn::Sub:
-        - "${ApiEndpoint}/boards"
         - { ApiEndpoint: !GetAtt HttpApi.ApiEndpoint }

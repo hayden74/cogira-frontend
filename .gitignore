@@ -2,7 +2,9 @@
 .aws-sam/
 
 # Node
+node_modules/
 src/node_modules/
+coverage/
 
 # TypeScript
 *.tsbuildinfo
@@ -14,4 +16,3 @@ Thumbs.db
 *.log
 .vscode/
 .idea/
-
