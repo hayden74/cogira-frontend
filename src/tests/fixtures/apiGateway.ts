@@ -13,9 +13,9 @@ export function makeEvent({
   headers = {},
   body,
 }: MakeEventArgs = {}): APIGatewayProxyEventV2 {
-  // derive pathParameters for explicit routes like /users/{id}
+  // derive pathParameters for explicit routes like /resource/{id}
   let pathParameters: Record<string, string> | undefined;
-  const m = path.match(/^\/?users\/(.+)$/);
+  const m = path.match(/^\/?[^\/]+\/(.+)$/);
   if (m) pathParameters = { id: m[1] };
   const payload: any = {
     version: "2.0",

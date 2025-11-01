@@ -1,8 +1,8 @@
-import { buildResponse } from "../../lib/http";
-import type { AppRequest } from "../../lib/request";
-import * as svc from "../../services/usersService";
+import { buildResponse } from "@/lib/http";
+import type { AppRequest } from "@/lib/request";
+import * as svc from "@/services/usersService";
 import { CreateUserBody, UpdateUserBody } from "./schemas";
-import { AppError } from "../../lib/errors";
+import { AppError } from "@/lib/errors";
 
 export async function listUsersOp(req: AppRequest) {
   const { method } = req;

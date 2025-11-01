@@ -1,21 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
-vi.mock("../../services/usersService", () => ({
-  createUser: vi.fn(async (input: any) => ({
-    id: "u-1",
-    ...input,
-    createdAt: "t",
-    modifiedAt: "t",
-  })),
-  listUsers: vi.fn(async () => []),
-  getUser: vi.fn(async (id: string) => ({
-    id,
-    createdAt: "t",
-    modifiedAt: "t",
-  })),
-}));
-import { baseHandler } from "../../index";
-import { makeEvent } from "../fixtures/apiGateway";
-import { expectJson } from "../utils/http";
+vi.mock("@/services/usersService");
+import { baseHandler } from "@/index";
+import { makeEvent } from "@/tests/fixtures/apiGateway";
+import { expectJson } from "@/tests/utils/http";
 
 describe("router: delegation", () => {
   it("delegates to users for any path (single-domain PoC)", async () => {

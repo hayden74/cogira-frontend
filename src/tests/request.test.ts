@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseEvent } from "../lib/request";
+import { parseEvent } from "@/lib/request";
 
 const baseEvent = {
   version: "2.0",

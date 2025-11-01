@@ -6,7 +6,7 @@ import {
   DeleteCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { docClient } from "./ddb/client";
-import { User } from "../types/user";
+import { User } from "@/types/user";
 
 // Prefer env var if present; fallback to UsersTable for this PoC
 const getTableName = (): string => process.env.USERS_TABLE || "UsersTable";

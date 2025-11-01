@@ -1,32 +1,29 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { AppRequest } from "../lib/request";
-import { AppError } from "../lib/errors";
-import { handleUsers } from "../controllers/users/userController";
-
-vi.mock("../services/usersService", () => {
-  return {
-    listUsers: vi.fn(async () => [
-      { id: "1", firstName: "A", lastName: "B", createdAt: "", modifiedAt: "" },
-    ]),
-    getUser: vi.fn(async (id: string) =>
-      id === "exists"
-        ? { id, firstName: "A", lastName: "B", createdAt: "", modifiedAt: "" }
-        : null
-    ),
-    createUser: vi.fn(async (u: any) => ({
-      id: "new",
-      ...u,
-      createdAt: "",
-      modifiedAt: "",
-    })),
-    updateUser: vi.fn(async (id: string, u: any) =>
-      id === "exists"
-        ? { id, firstName: "A", lastName: "B", createdAt: "", modifiedAt: "" }
-        : null
-    ),
-    deleteUser: vi.fn(async () => {}),
-  };
-});
+vi.mock("@/services/usersService", () => ({
+  listUsers: vi.fn(async () => [
+    { id: "1", firstName: "A", lastName: "B", createdAt: "", modifiedAt: "" },
+  ]),
+  getUser: vi.fn(async (id: string) =>
+    id === "exists"
+      ? { id, firstName: "A", lastName: "B", createdAt: "", modifiedAt: "" }
+      : null
+  ),
+  createUser: vi.fn(async (u: any) => ({
+    id: "new",
+    ...u,
+    createdAt: "",
+    modifiedAt: "",
+  })),
+  updateUser: vi.fn(async (id: string, u: any) =>
+    id === "exists"
+      ? { id, firstName: "A", lastName: "B", createdAt: "", modifiedAt: "" }
+      : null
+  ),
+  deleteUser: vi.fn(async () => {}),
+}));
+import type { AppRequest } from "@/lib/request";
+import { AppError } from "@/lib/errors";
+import { handleUsers } from "@/controllers/users/userController";
 
 const makeReq = (over: Partial<AppRequest>): AppRequest => ({
   method: "GET",

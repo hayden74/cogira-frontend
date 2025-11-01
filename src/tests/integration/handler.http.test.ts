@@ -1,21 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
-vi.mock("../../services/usersService", () => ({
-  createUser: vi.fn(async (input: any) => ({
-    id: "u-1",
-    ...input,
-    createdAt: "t",
-    modifiedAt: "t",
-  })),
-  getUser: vi.fn(async (id: string) => ({
-    id,
-    createdAt: "t",
-    modifiedAt: "t",
-  })),
-  listUsers: vi.fn(async () => []),
-}));
-import { handler } from "../../index";
-import { makeEvent } from "../fixtures/apiGateway";
-import { getHeader, expectJson } from "../utils/http";
+vi.mock(
+  "@/services/usersService",
+  () => import("@/__mocks__/@/services/usersService")
+);
+import { handler } from "@/index";
+import { makeEvent } from "@/tests/fixtures/apiGateway";
+import { expectJson } from "@/tests/utils/http";
 
 describe("HTTP integration: handler (middy + router)", () => {
   it("GET /users returns 200 with JSON", async () => {
