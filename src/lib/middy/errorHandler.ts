@@ -1,6 +1,6 @@
 import type { MiddlewareObj } from "@middy/core";
-import { buildResponse } from "@/lib/http";
-import { AppError, isAppError } from "@/lib/errors";
+import { buildResponse } from "../http";
+import { AppError, isAppError } from "../errors";
 
 export const errorHandler = (): MiddlewareObj<any, any> => ({
   onError: async (request: any) => {

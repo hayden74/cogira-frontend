@@ -1,7 +1,7 @@
 import dayjs from "dayjs";
 import { v4 as uuidv4 } from "uuid";
-import * as repo from "@/data/usersRepo";
-import type { NewUser, User } from "@/types/user";
+import * as repo from "../data/usersRepo";
+import type { NewUser, User } from "../types/user";
 
 export async function createUser(input: NewUser): Promise<User> {
   const now = dayjs().toISOString();

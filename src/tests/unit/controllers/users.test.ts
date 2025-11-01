@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { AppError } from "@/lib/errors";
-vi.mock("@/services/usersService", () => ({
+import { AppError } from "../../../lib/errors";
+vi.mock("../../../services/usersService", () => ({
   createUser: vi.fn(async (input: any) => ({
     id: "u-1",
     ...input,
@@ -21,10 +21,10 @@ vi.mock("@/services/usersService", () => ({
   })),
   deleteUser: vi.fn(async (_id: string) => {}),
 }));
-import { makeEvent } from "@/tests/fixtures/apiGateway";
-import { expectJson, getHeader } from "@/tests/utils/http";
-import * as svc from "@/services/usersService";
-import { usersHandlers } from "@/controllers/users";
+import { makeEvent } from "../../fixtures/apiGateway";
+import { expectJson, getHeader } from "../../utils/http";
+import * as svc from "../../../services/usersService";
+import { usersHandlers } from "../../../controllers/users";
 
 describe("usersHandlers", () => {
   it("returns 200 for GET /users", async () => {

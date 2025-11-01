@@ -1,5 +1,5 @@
 import { vi } from "vitest";
-import type { NewUser, User } from "@/types/user";
+import type { NewUser, User } from "../../../types/user";
 
 export const createUser = vi.fn(
   async (input?: NewUser): Promise<User> => ({

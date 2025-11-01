@@ -4,7 +4,7 @@
 # Node
 node_modules/
 src/node_modules/
-coverage/
+**/coverage/
 
 # TypeScript
 *.tsbuildinfo

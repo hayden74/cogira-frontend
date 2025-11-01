@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 vi.mock(
-  "@/services/usersService",
-  () => import("@/__mocks__/@/services/usersService")
+  "../../services/usersService",
+  () => import("../../__mocks__/@/services/usersService")
 );
-import { handler } from "@/index";
-import { makeEvent } from "@/tests/fixtures/apiGateway";
-import { expectJson } from "@/tests/utils/http";
+import { handler } from "../../index";
+import { makeEvent } from "../fixtures/apiGateway";
+import { expectJson } from "../utils/http";
 
 describe("HTTP integration: handler (middy + router)", () => {
   it("GET /users returns 200 with JSON", async () => {

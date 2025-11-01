@@ -4,11 +4,6 @@ import { fileURLToPath } from "node:url";
 const root = fileURLToPath(new URL(".", import.meta.url));
 
 export default defineConfig({
-  resolve: {
-    alias: {
-      "@": root,
-    },
-  },
   test: {
     include: ["tests/**/*.test.ts"],
     environment: "node",
@@ -19,10 +14,10 @@ export default defineConfig({
     coverage: {
       enabled: true,
       provider: "v8",
-      reportsDirectory: "./coverage",
+      reportsDirectory: "../coverage",
       reporter: ["text", "html", "lcov"],
       // config file is inside `src/`, so globs are relative to that root
-      exclude: ["tests/**", "__mocks__/**", "data/**", "lib/**"],
+      exclude: ["tests/**", "__mocks__/**", "data/**", "lib/**", "coverage/**"],
     },
   },
 });

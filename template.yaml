@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: Single modular-monolith Lambda with router and three domain handlers
+Description: Cogira backend - Single modular-monolith Lambda with router and multiple domain handlers
 
 Parameters:
   UsersTableName:
@@ -23,13 +23,14 @@ Resources:
   HttpApi:
     Type: AWS::Serverless::HttpApi
     Properties:
-      Description: Modular monolith API
+      Description: Cogira API
       CorsConfiguration:
         AllowOrigins:
           - "*"
         AllowHeaders:
           - Content-Type
           - Authorization
+          - X-Correlation-Id
         AllowMethods:
           - GET
           - POST
@@ -37,6 +38,8 @@ Resources:
           - PATCH
           - DELETE
           - OPTIONS
+        ExposeHeaders:
+          - X-Correlation-Id
 
   UsersDynamoTable:
     Type: AWS::DynamoDB::Table
@@ -50,7 +53,7 @@ Resources:
         - AttributeName: id
           KeyType: HASH
 
-  ModularMonolith:
+  CogiraFunction:
     Type: AWS::Serverless::Function
     Properties:
       Handler: index.handler

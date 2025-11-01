@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@/data/usersRepo", () => {
+vi.mock("../../../data/usersRepo", () => {
   return {
     create: vi.fn(async (_user: any) => {}),
     getById: vi.fn(async (_id: string) => ({
@@ -16,10 +16,10 @@ vi.mock("@/data/usersRepo", () => {
     remove: vi.fn(async (_id: string) => {}),
   };
 });
-import * as repo from "@/data/usersRepo";
+import * as repo from "../../../data/usersRepo";
 vi.mock("dayjs", () => ({ default: () => ({ toISOString: () => "t" }) }));
 vi.mock("uuid", () => ({ v4: () => "uuid-1" }));
-import { createUser, getUser, listUsers, updateUser, deleteUser } from "@/services/usersService";
+import { createUser, getUser, listUsers, updateUser, deleteUser } from "../../../services/usersService";
 
 describe("usersService", () => {
   beforeEach(() => {

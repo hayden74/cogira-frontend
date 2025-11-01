@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
-vi.mock("@/services/usersService");
-import { baseHandler } from "@/index";
-import { makeEvent } from "@/tests/fixtures/apiGateway";
-import { expectJson } from "@/tests/utils/http";
+vi.mock("../../services/usersService");
+import { baseHandler } from "../../index";
+import { makeEvent } from "../fixtures/apiGateway";
+import { expectJson } from "../utils/http";
 
 describe("router: delegation", () => {
   it("delegates to users for any path (single-domain PoC)", async () => {

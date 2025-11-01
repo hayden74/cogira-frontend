@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-vi.mock("@/services/usersService", () => ({
+vi.mock("../../../services/usersService", () => ({
   listUsers: vi.fn(async () => [
     { id: "1", firstName: "A", lastName: "B", createdAt: "", modifiedAt: "" },
   ]),
@@ -21,9 +21,9 @@ vi.mock("@/services/usersService", () => ({
   ),
   deleteUser: vi.fn(async () => {}),
 }));
-import type { AppRequest } from "@/lib/request";
-import { AppError } from "@/lib/errors";
-import { handleUsers } from "@/controllers/users/userController";
+import type { AppRequest } from "../../../lib/request";
+import { AppError } from "../../../lib/errors";
+import { handleUsers } from "../../../controllers/users/userController";
 
 const makeReq = (over: Partial<AppRequest>): AppRequest => ({
   method: "GET",
