@@ -1,0 +1,15 @@
+version: 0.2
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+    commands:
+      - python3 -m pip install --upgrade pip
+      - python3 -m pip install --user aws-sam-cli
+      - export PATH="$PATH:/root/.local/bin"
+      - sam --version
+  build:
+    commands:
+      - set -euo pipefail
+      - echo "Deploying compiled template with CONFIG_ENV=${ENV:-dev} (CI role creds)"
+      - make deploy-ci CONFIG_ENV=${ENV:-dev}
