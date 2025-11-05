@@ -7,7 +7,7 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "types": ["aws-lambda"]
+    "types": ["aws-lambda", "vitest/globals"]
   },
   "include": ["**/*.ts"]
 }

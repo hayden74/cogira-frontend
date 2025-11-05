@@ -1,8 +1,16 @@
-AWSTemplateFormatVersion: "2010-09-09"
+AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: Cogira backend - Single modular-monolith Lambda with router and multiple domain handlers
 
 Parameters:
+  Environment:
+    Type: String
+    Description: Environment name (dev, staging, prod)
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
   UsersTableName:
     Type: String
     Description: Name of the DynamoDB table used to store users
@@ -17,7 +25,12 @@ Globals:
     Tracing: Active
     Environment:
       Variables:
-        USERS_TABLE: !Ref UsersTableName
+        USERS_TABLE: !Sub '${UsersTableName}-${Environment}'
+        NODE_ENV: !Ref Environment
+        LOG_LEVEL: !If [IsProd, 'warn', 'info']
+
+Conditions:
+  IsProd: !Equals [!Ref Environment, 'prod']
 
 Resources:
   HttpApi:
@@ -26,7 +39,7 @@ Resources:
       Description: Cogira API
       CorsConfiguration:
         AllowOrigins:
-          - "*"
+          - '*'
         AllowHeaders:
           - Content-Type
           - Authorization
@@ -44,7 +57,7 @@ Resources:
   UsersDynamoTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: !Ref UsersTableName
+      TableName: !Sub '${UsersTableName}-${Environment}'
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: id
@@ -57,6 +70,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: index.handler
+      ReservedConcurrentExecutions: 100
       Events:
         GetUsers:
           Type: HttpApi
@@ -96,13 +110,13 @@ Resources:
             Method: DELETE
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: !Ref UsersTableName
+            TableName: !Sub '${UsersTableName}-${Environment}'
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
         Minify: true
         Platform: node
-        Target: "node22"
+        Target: 'node22'
         Sourcemap: false
         EntryPoints:
           - index.ts
@@ -119,5 +133,11 @@ Outputs:
     Description: Example endpoint for users routes
     Value:
       Fn::Sub:
-        - "${ApiEndpoint}/users"
+        - '${ApiEndpoint}/users'
         - { ApiEndpoint: !GetAtt HttpApi.ApiEndpoint }
+  FunctionArn:
+    Description: Lambda function ARN
+    Value: !GetAtt CogiraFunction.Arn
+  Environment:
+    Description: Deployment environment
+    Value: !Ref Environment

@@ -1,2 +1,1 @@
-export const v4 = () => "uuid-1";
-
+export const v4 = () => 'uuid-1';

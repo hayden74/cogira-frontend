@@ -1,4 +1,4 @@
-import { APIGatewayProxyStructuredResultV2 } from "aws-lambda";
+import { APIGatewayProxyStructuredResultV2 } from 'aws-lambda';
 
 export const buildResponse = (
   statusCode: number,
@@ -8,7 +8,7 @@ export const buildResponse = (
   const res: APIGatewayProxyStructuredResultV2 = {
     statusCode,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
       ...headers,
     },
   };

@@ -4,17 +4,41 @@ phases:
     runtime-versions:
       nodejs: 20
     commands:
-      - python3 -m pip install --upgrade pip
-      - python3 -m pip install --user aws-sam-cli
+      - pip install --user aws-sam-cli
       - export PATH="$PATH:/root/.local/bin"
+      - export SAM_CLI_TELEMETRY=0
+      - npm install -g esbuild
       - sam --version
   pre_build:
     commands:
-      - sam validate
+      - echo "Git commit SHA $CODEBUILD_RESOLVED_SOURCE_VERSION"
+      - sam validate --template template.yaml || exit 1
+      - test -d "src" || (echo "src directory not found" && exit 1)
+      - (cd src && npm ci) || exit 1
+      - (cd src && npm test) || exit 1
   build:
     commands:
       - echo "Building with CONFIG_ENV=${ENV:-dev}"
-      - make build CONFIG_ENV=${ENV:-dev}
+      - sam build --config-env ${ENV:-dev} || exit 1
+  post_build:
+    commands:
+      - echo "Git commit SHA $CODEBUILD_RESOLVED_SOURCE_VERSION"
+      - |
+        if [ "${BUILD_TYPE:-pipeline}" = "branch" ]; then
+          echo "Branch build completed"
+          echo "Artifact will be available as: build-artifact.zip"
+          echo "Git commit: $CODEBUILD_RESOLVED_SOURCE_VERSION"
+          echo "To deploy this specific commit, use ARTIFACT_KEY=build-artifact.zip"
+        else
+          echo "Pipeline build completed - proceeding to deployment"
+        fi
+    finally:
+      - |
+        if [ "${BUILD_TYPE:-pipeline}" = "branch" ]; then
+          echo "Creating commit-specific artifact copy"
+          aws s3 cp "s3://${ARTIFACT_BUCKET}/build-artifact.zip" "s3://${ARTIFACT_BUCKET}/${CODEBUILD_RESOLVED_SOURCE_VERSION}.zip" || echo "Artifact not yet available for copy"
+          echo "Commit-specific artifact: ${CODEBUILD_RESOLVED_SOURCE_VERSION}.zip"
+        fi
 artifacts:
   files:
     - template.yaml

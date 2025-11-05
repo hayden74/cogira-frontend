@@ -1,15 +1,32 @@
 version: 0.2
 phases:
   install:
-    runtime-versions:
-      nodejs: 20
     commands:
-      - python3 -m pip install --upgrade pip
-      - python3 -m pip install --user aws-sam-cli
+      - pip install --user aws-sam-cli
       - export PATH="$PATH:/root/.local/bin"
-      - sam --version
+      - export SAM_CLI_TELEMETRY=0
+  pre_build:
+    commands:
+      - |
+        if [ -n "$ARTIFACT_S3_PATH" ]; then
+          echo "Using custom S3 artifact: $ARTIFACT_S3_PATH"
+          aws s3 cp "$ARTIFACT_S3_PATH" ./artifact.zip || exit 1
+          unzip -q artifact.zip || exit 1
+        elif [ "$USE_S3_ARTIFACT" = "true" ]; then
+          echo "Using default S3 artifact: s3://${ARTIFACT_BUCKET}/branch-builds.zip"
+          aws s3 cp "s3://${ARTIFACT_BUCKET}/branch-builds.zip" ./artifact.zip || exit 1
+          unzip -q artifact.zip || exit 1
+        else
+          echo "Using pipeline artifacts (already available)"
+        fi
+      - ls -la
   build:
     commands:
-      - set -euo pipefail
-      - echo "Deploying compiled template with CONFIG_ENV=${ENV:-dev} (CI role creds)"
-      - make deploy-ci CONFIG_ENV=${ENV:-dev}
+      - echo "Deploying to ${DEPLOY_ENV} environment"
+      - |
+        STACK_NAME="cogira-backend-${DEPLOY_ENV}"
+        if [ -f ".aws-sam/build/template.yaml" ]; then
+          sam deploy --config-env "$DEPLOY_ENV" --template-file .aws-sam/build/template.yaml --stack-name "$STACK_NAME" --resolve-s3 --capabilities CAPABILITY_IAM --no-confirm-changeset || exit 1
+        else
+          sam deploy --config-env "$DEPLOY_ENV" --template-file template.yaml --stack-name "$STACK_NAME" --resolve-s3 --capabilities CAPABILITY_IAM --no-confirm-changeset || exit 1
+        fi

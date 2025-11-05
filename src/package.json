@@ -10,23 +10,33 @@
   "license": "UNLICENSED",
   "devDependencies": {
     "@types/aws-lambda": "^8.10.137",
+    "@types/helmet": "^0.0.48",
     "@types/node": "^20.11.30",
-    "@vitest/coverage-v8": "^1.6.1",
+    "@typescript-eslint/eslint-plugin": "^8.46.3",
+    "@typescript-eslint/parser": "^8.46.3",
+    "@vitest/coverage-v8": "^2.1.8",
     "esbuild": "^0.21.5",
-    "vite": "^5.4.8",
-    "vitest": "^1.6.0"
+    "eslint": "^9.39.1",
+    "prettier": "^3.6.2",
+    "vite": "^6.0.7",
+    "vitest": "^2.1.8"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.667.0",
     "@aws-sdk/lib-dynamodb": "^3.667.0",
     "@middy/core": "^5.4.4",
     "dayjs": "^1.11.13",
+    "dotenv": "^17.2.3",
+    "helmet": "^8.1.0",
     "uuid": "^9.0.1",
+    "winston": "^3.18.3",
     "zod": "^3.23.8"
   },
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint . --ext .ts",
+    "lint:fix": "eslint . --ext .ts --fix"
   }
 }

@@ -1,0 +1,473 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "Cogira CI pipeline for SAM (build + manual deploy)"
+
+Parameters:
+  RepoName:
+    Type: String
+    Default: cogira-backend
+  BranchName:
+    Type: String
+    Default: main
+  ProjectPrefix:
+    Type: String
+    Default: cogira-backend
+  CiEnv:
+    Type: String
+    Default: dev
+    Description: "ENV passed to Makefile (loads env/<ENV>.env)"
+
+Mappings:
+  Images:
+    Standard:
+      Image: "aws/codebuild/standard:7.0"
+
+Resources:
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  PipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: codepipeline.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CodePipelineBasic
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub ${ArtifactBucket.Arn}
+                  - !Sub ${ArtifactBucket.Arn}/*
+              - Effect: Allow
+                Action:
+                  - codecommit:GetBranch
+                  - codecommit:GetCommit
+                  - codecommit:GitPull
+                Resource: !Sub arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${RepoName}
+              - Effect: Allow
+                Action:
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuilds
+                Resource:
+                  - !GetAtt BuildProject.Arn
+                  - !GetAtt FlexibleDeployProject.Arn
+
+  BuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: codebuild.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: BuildBasic
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub ${ArtifactBucket.Arn}
+                  - !Sub ${ArtifactBucket.Arn}/*
+              - Effect: Allow
+                Action:
+                  - codecommit:GetRepository
+                  - codecommit:GetBranch
+                  - codecommit:GetCommit
+                  - codecommit:GitPull
+                Resource: !Sub arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${RepoName}
+
+  # EventBridge role for triggering CodeBuild
+  EventBridgeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: events.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: StartCodeBuild
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - codebuild:StartBuild
+                Resource: !GetAtt BuildProject.Arn
+
+  # Unified build project for both branch and pipeline builds
+  BuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub "${ProjectPrefix}-build"
+      ServiceRole: !GetAtt BuildRole.Arn
+      Artifacts:
+        Type: S3
+        Location: !Ref ArtifactBucket
+        Name: "build-artifact"
+        Packaging: ZIP
+      Source:
+        Type: CODECOMMIT
+        Location: !Sub "https://git-codecommit.${AWS::Region}.amazonaws.com/v1/repos/${RepoName}"
+        BuildSpec: pipeline/buildspec-build.yml
+      Environment:
+        Type: LINUX_CONTAINER
+        Image: !FindInMap [Images, Standard, Image]
+        ComputeType: BUILD_GENERAL1_SMALL
+        EnvironmentVariables:
+          - Name: ENV
+            Type: PLAINTEXT
+            Value: dev
+          - Name: BUILD_TYPE
+            Type: PLAINTEXT
+            Value: branch
+          - Name: ARTIFACT_BUCKET
+            Type: PLAINTEXT
+            Value: !Ref ArtifactBucket
+
+  # EventBridge rule for CodeCommit pushes to main
+  CodeCommitPushRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${ProjectPrefix}-main-push"
+      Description: "Trigger build on CodeCommit push to main"
+      EventPattern:
+        source: ["aws.codecommit"]
+        detail-type: ["CodeCommit Repository State Change"]
+        resources: [!Sub "arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${RepoName}"]
+        detail:
+          event: ["referenceCreated", "referenceUpdated"]
+          referenceName: ["main"]
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt BuildProject.Arn
+          Id: "MainPushTarget"
+          RoleArn: !GetAtt EventBridgeRole.Arn
+
+  # EventBridge rule for Pull Requests to main
+  CodeCommitPRRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${ProjectPrefix}-main-pr"
+      Description: "Trigger build on PR to main branch"
+      EventPattern:
+        source: ["aws.codecommit"]
+        detail-type: ["CodeCommit Pull Request State Change"]
+        resources: [!Sub "arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${RepoName}"]
+        detail:
+          event: ["pullRequestCreated", "pullRequestSourceBranchUpdated"]
+          destinationReference: ["refs/heads/main"]
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt BuildProject.Arn
+          Id: "PRBuildTarget"
+          RoleArn: !GetAtt EventBridgeRole.Arn
+
+
+
+  DeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: codebuild.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: DeployBasic
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - s3:CreateBucket
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - codecommit:GetRepository
+                  - codecommit:GetBranch
+                  - codecommit:GetCommit
+                  - codecommit:GitPull
+                Resource: !Sub arn:${AWS::Partition}:codecommit:${AWS::Region}:${AWS::AccountId}:${RepoName}
+              - Effect: Allow
+                Action:
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:CreateStack
+                  - cloudformation:UpdateStack
+                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ProjectPrefix}-*/*
+              - Effect: Allow
+                Action:
+                  - cloudformation:CreateChangeSet
+                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:aws:transform/Serverless-*
+              - Effect: Allow
+                Action:
+                  - cloudformation:Describe*
+                  - cloudformation:List*
+                  - cloudformation:GetTemplate
+                  - cloudformation:GetTemplateSummary
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:TagRole
+                  - iam:UntagRole
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${ProjectPrefix}-*
+              - Effect: Allow
+                Action:
+                  - iam:GetRole
+                  - iam:GetRolePolicy
+                  - iam:ListRolePolicies
+                  - iam:ListAttachedRolePolicies
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/*
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    iam:PassedToService: 
+                      - cloudformation.amazonaws.com
+                      - lambda.amazonaws.com
+              - Effect: Allow
+                Action:
+                  - lambda:*
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - apigateway:*
+                  - apigatewayv2:*
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - dynamodb:*
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - cognito-idp:*
+                  - cognito-identity:*
+                  - events:*
+                  - logs:*
+                  - xray:*
+                  - application-autoscaling:*
+                Resource: "*"
+
+  # Single flexible deploy project for all environments
+  FlexibleDeployProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub "${ProjectPrefix}-deploy"
+      ServiceRole: !GetAtt DeployRole.Arn
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Source:
+        Type: NO_SOURCE
+        BuildSpec: |
+          version: 0.2
+          phases:
+            install:
+              commands:
+                - pip install --user aws-sam-cli
+                - export PATH="$PATH:/root/.local/bin"
+                - export SAM_CLI_TELEMETRY=0
+            pre_build:
+              commands:
+                - |
+                  if [ "$USE_S3_ARTIFACT" = "true" ]; then
+                    echo "Available artifacts in bucket:"
+                    aws s3 ls "s3://${ARTIFACT_BUCKET}/" || echo "No artifacts found"
+                    if [ -n "$ARTIFACT_KEY" ]; then
+                      echo "Trying to download: s3://${ARTIFACT_BUCKET}/${ARTIFACT_KEY}"
+                      if aws s3 cp "s3://${ARTIFACT_BUCKET}/${ARTIFACT_KEY}" ./artifact.zip; then
+                        echo "Downloaded specified artifact"
+                      else
+                        echo "Specified artifact not found, trying build-artifact"
+                        aws s3 cp "s3://${ARTIFACT_BUCKET}/build-artifact" ./artifact.zip || exit 1
+                      fi
+                    else
+                      echo "No ARTIFACT_KEY specified, using latest artifact"
+                      LATEST_KEY=$(aws s3api list-objects-v2 --bucket "${ARTIFACT_BUCKET}" --query 'sort_by(Contents, &LastModified)[-1].Key' --output text)
+                      echo "Latest artifact: ${LATEST_KEY}"
+                      aws s3 cp "s3://${ARTIFACT_BUCKET}/${LATEST_KEY}" ./artifact.zip || exit 1
+                    fi
+                    unzip -q artifact.zip || exit 1
+                  fi
+            build:
+              commands:
+                - echo "Deploying to ${DEPLOY_ENV} environment"
+                - |
+                  STACK_NAME="cogira-backend-${DEPLOY_ENV}"
+                  if [ -f ".aws-sam/build/template.yaml" ]; then
+                    sam deploy --config-env "$DEPLOY_ENV" --template-file .aws-sam/build/template.yaml --stack-name "$STACK_NAME" --resolve-s3 --capabilities CAPABILITY_IAM --no-confirm-changeset || exit 1
+                  else
+                    sam deploy --config-env "$DEPLOY_ENV" --template-file template.yaml --stack-name "$STACK_NAME" --resolve-s3 --capabilities CAPABILITY_IAM --no-confirm-changeset || exit 1
+                  fi
+      Environment:
+        Type: LINUX_CONTAINER
+        Image: !FindInMap [Images, Standard, Image]
+        ComputeType: BUILD_GENERAL1_SMALL
+        EnvironmentVariables:
+          - Name: ARTIFACT_BUCKET
+            Type: PLAINTEXT
+            Value: !Ref ArtifactBucket
+          - Name: DEPLOY_ENV
+            Type: PLAINTEXT
+            Value: dev
+          - Name: ARTIFACT_KEY
+            Type: PLAINTEXT
+            Value: ""
+          - Name: USE_S3_ARTIFACT
+            Type: PLAINTEXT
+            Value: "true"
+
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: !Sub "${ProjectPrefix}-pipeline"
+      RoleArn: !GetAtt PipelineRole.Arn
+      ArtifactStore:
+        Location: !Ref ArtifactBucket
+        Type: S3
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: Source
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: CodeCommit
+                Version: '1'
+              OutputArtifacts:
+                - Name: SourceArtifact
+              Configuration:
+                RepositoryName: !Ref RepoName
+                BranchName: !Ref BranchName
+                PollForSourceChanges: true
+              RunOrder: 1
+        - Name: Build
+          Actions:
+            - Name: Build
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              InputArtifacts:
+                - Name: SourceArtifact
+              OutputArtifacts:
+                - Name: BuildArtifact
+              Configuration:
+                ProjectName: !Ref BuildProject
+                EnvironmentVariables: |
+                  [
+                    {"name":"ENV","value":"dev","type":"PLAINTEXT"},
+                    {"name":"BUILD_TYPE","value":"pipeline","type":"PLAINTEXT"}
+                  ]
+              RunOrder: 1
+        - Name: DeployDev
+          Actions:
+            - Name: DeployToDev
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              InputArtifacts:
+                - Name: BuildArtifact
+              Configuration:
+                ProjectName: !Ref FlexibleDeployProject
+                EnvironmentVariables: |
+                  [
+                    {"name":"DEPLOY_ENV","value":"dev","type":"PLAINTEXT"},
+                    {"name":"USE_S3_ARTIFACT","value":"false","type":"PLAINTEXT"}
+                  ]
+              RunOrder: 1
+        - Name: Approve
+          Actions:
+            - Name: ManualApproval
+              ActionTypeId:
+                Category: Approval
+                Owner: AWS
+                Provider: Manual
+                Version: '1'
+              RunOrder: 1
+        - Name: DeployProd
+          Actions:
+            - Name: DeployToProd
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              InputArtifacts:
+                - Name: BuildArtifact
+              Configuration:
+                ProjectName: !Ref FlexibleDeployProject
+                EnvironmentVariables: |
+                  [
+                    {"name":"DEPLOY_ENV","value":"prod","type":"PLAINTEXT"},
+                    {"name":"USE_S3_ARTIFACT","value":"false","type":"PLAINTEXT"}
+                  ]
+              RunOrder: 1
+
+Outputs:
+  PipelineName:
+    Value: !Ref Pipeline
+  BuildProject:
+    Description: "Unified CodeBuild project for both branch and pipeline builds"
+    Value: !Ref BuildProject
+  FlexibleDeployProject:
+    Description: "CodeBuild project for deployments (all environments, pipeline or manual S3 artifacts)"
+    Value: !Ref FlexibleDeployProject
+  ArtifactBucket:
+    Description: "S3 bucket containing build artifacts"
+    Value: !Ref ArtifactBucket

@@ -11,12 +11,19 @@ build:
 deploy:
 	sam deploy --profile $(PROFILE) --config-env $(CONFIG_ENV)
 
-# CI-friendly deploy using role credentials (no --profile),
-# deploying the compiled template from .aws-sam/build
-deploy-ci:
-	sam deploy --config-env $(CONFIG_ENV) --template-file .aws-sam/build/template.yaml
-
 test:
-	cd src && npm test
+	cd src && npm run test:coverage
 
-.PHONY: default build deploy deploy-ci test
+install:
+	cd src && npm install
+
+format:
+	npx prettier --write src/
+
+lint:
+	cd src && npm run lint
+
+lint-fix:
+	cd src && npm run lint:fix
+
+.PHONY: default build deploy deploy-ci test install format lint lint-fix

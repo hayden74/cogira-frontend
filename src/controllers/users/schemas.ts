@@ -1,19 +1,32 @@
-import { z } from 'zod'
+import { z } from 'zod';
 
-export const CreateUserBody = z.object({
-  firstName: z.string().min(1),
-  lastName: z.string().min(1),
-})
+const sanitizeString = (str: string) => {
+  if (str.includes('<script>') || str.includes('</script>')) {
+    throw new z.ZodError([
+      {
+        code: 'custom',
+        message: 'Invalid characters detected',
+        path: [],
+      },
+    ]);
+  }
+  return str;
+};
 
-export type CreateUserBody = z.infer<typeof CreateUserBody>
+export const CreateUserBodySchema = z.object({
+  firstName: z.string().min(1).max(100).transform(sanitizeString),
+  lastName: z.string().min(1).max(100).transform(sanitizeString),
+});
 
-export const UpdateUserBody = z
+export type CreateUserBody = z.infer<typeof CreateUserBodySchema>;
+
+export const UpdateUserBodySchema = z
   .object({
-    firstName: z.string().min(1).optional(),
-    lastName: z.string().min(1).optional(),
+    firstName: z.string().min(1).max(100).transform(sanitizeString).optional(),
+    lastName: z.string().min(1).max(100).transform(sanitizeString).optional(),
   })
   .refine((v) => Object.keys(v).length > 0, {
     message: 'At least one field must be provided',
-  })
+  });
 
-export type UpdateUserBody = z.infer<typeof UpdateUserBody>
+export type UpdateUserBody = z.infer<typeof UpdateUserBodySchema>;

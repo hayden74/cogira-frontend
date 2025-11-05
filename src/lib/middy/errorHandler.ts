@@ -1,6 +1,6 @@
-import type { MiddlewareObj } from "@middy/core";
-import { buildResponse } from "../http";
-import { AppError, isAppError } from "../errors";
+import type { MiddlewareObj } from '@middy/core';
+import { buildResponse } from '../http';
+import { isAppError } from '../errors';
 
 export const errorHandler = (): MiddlewareObj<any, any> => ({
   onError: async (request: any) => {
@@ -10,8 +10,8 @@ export const errorHandler = (): MiddlewareObj<any, any> => ({
     if (isAppError(err)) {
       console.error(
         JSON.stringify({
-          level: "error",
-          msg: "handled.error",
+          level: 'error',
+          msg: 'handled.error',
           correlationId: cid,
           code: err.code,
           status: err.status,
@@ -21,7 +21,7 @@ export const errorHandler = (): MiddlewareObj<any, any> => ({
       request.response = buildResponse(
         err.status,
         { message: err.message, code: err.code, details: err.details },
-        { "X-Correlation-Id": cid }
+        { 'X-Correlation-Id': cid }
       );
       return;
     }
@@ -29,31 +29,31 @@ export const errorHandler = (): MiddlewareObj<any, any> => ({
     if (err instanceof SyntaxError) {
       console.error(
         JSON.stringify({
-          level: "error",
-          msg: "malformed.json",
+          level: 'error',
+          msg: 'malformed.json',
           correlationId: cid,
         })
       );
       request.response = buildResponse(
         400,
-        { message: "Malformed JSON" },
-        { "X-Correlation-Id": cid }
+        { message: 'Malformed JSON' },
+        { 'X-Correlation-Id': cid }
       );
       return;
     }
 
     console.error(
       JSON.stringify({
-        level: "error",
-        msg: "unhandled.error",
+        level: 'error',
+        msg: 'unhandled.error',
         correlationId: cid,
         error: String(err),
       })
     );
     request.response = buildResponse(
       500,
-      { message: "Internal Server Error" },
-      { "X-Correlation-Id": cid }
+      { message: 'Internal Server Error' },
+      { 'X-Correlation-Id': cid }
     );
   },
 });

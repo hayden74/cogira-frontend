@@ -1,8 +1,8 @@
 import {
   APIGatewayProxyResult,
   APIGatewayProxyStructuredResultV2,
-} from "aws-lambda";
-import { expect } from "vitest";
+} from 'aws-lambda';
+import { expect } from 'vitest';
 
 export function normalizeHeaders(
   headers?: Record<string, string | number | boolean>
@@ -15,7 +15,9 @@ export function normalizeHeaders(
   return out;
 }
 
-type AnyGatewayResult = APIGatewayProxyResult | APIGatewayProxyStructuredResultV2;
+type AnyGatewayResult =
+  | APIGatewayProxyResult
+  | APIGatewayProxyStructuredResultV2;
 
 export function getHeader(res: AnyGatewayResult, name: string) {
   const headers = normalizeHeaders(res.headers);
@@ -24,9 +26,9 @@ export function getHeader(res: AnyGatewayResult, name: string) {
 
 export function expectJson(res: AnyGatewayResult, status?: number) {
   if (status !== undefined) expect(res.statusCode).toBe(status);
-  const ct = getHeader(res, "content-type");
-  expect(ct).toContain("application/json");
-  const body = (res as any).body ?? "";
+  const ct = getHeader(res, 'content-type');
+  expect(ct).toContain('application/json');
+  const body = (res as any).body ?? '';
   expect(() => JSON.parse(body)).not.toThrow();
   return JSON.parse(body);
 }
