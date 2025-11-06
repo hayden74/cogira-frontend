@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('../services/usersService', () => ({
-  listUsers: vi.fn(async () => []),
+  listUsers: vi.fn(async () => ({ users: [], nextToken: undefined })),
   getUser: vi.fn(async () => null),
   createUser: vi.fn(async (u: any) => ({
     id: 'new',

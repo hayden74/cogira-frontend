@@ -1,7 +1,23 @@
 import dayjs from 'dayjs';
 import { v4 as uuidv4 } from 'uuid';
 import * as repo from '../data/usersRepo';
-import type { NewUser, User } from '../types/user';
+import { USER_ENTITY_TYPE } from '../data/usersEntity';
+import type {
+  NewUser,
+  User,
+  UserListOptions,
+  UserListResult,
+} from '../types/user';
+import type { UserItem } from '../data/usersEntity';
+
+const toUser = (item: UserItem | null): User | null => {
+  if (!item) return null;
+  // entityType is hidden but strip defensively in case it leaks through mocks
+  const { entityType: _entityType, ...rest } = item as UserItem & {
+    entityType?: string;
+  };
+  return rest as User;
+};
 
 export async function createUser(input: NewUser): Promise<User> {
   const now = dayjs().toISOString();
@@ -11,24 +27,26 @@ export async function createUser(input: NewUser): Promise<User> {
     modifiedAt: now,
     ...input,
   };
-  await repo.create(user);
-  return {
-    id: user.id,
-    firstName: input.firstName,
-    lastName: input.lastName,
-    createdAt: now,
-    modifiedAt: now,
-  };
+  await repo.create({ ...user, entityType: USER_ENTITY_TYPE });
+  return user;
 }
 
 export async function getUser(id: string): Promise<User | null> {
-  const u = await repo.getById(id);
-  return u ? (u as User) : null;
+  const item = await repo.getById(id);
+  return toUser(item);
 }
 
-export async function listUsers(): Promise<User[]> {
-  const users = await repo.listAll();
-  return users as unknown as User[];
+export async function listUsers(
+  options: UserListOptions = {}
+): Promise<UserListResult> {
+  const { items, nextToken } = await repo.listAll(options);
+  const users = items
+    .map((item) => toUser(item))
+    .filter((item): item is User => Boolean(item));
+  return {
+    users,
+    nextToken,
+  };
 }
 
 export async function updateUser(
@@ -38,7 +56,7 @@ export async function updateUser(
   const now = dayjs().toISOString();
   await repo.update(id, { ...input, modifiedAt: now });
   const updated = await repo.getById(id);
-  return updated ?? null;
+  return toUser(updated);
 }
 
 export async function deleteUser(id: string): Promise<void> {

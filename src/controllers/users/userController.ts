@@ -4,13 +4,44 @@ import * as svc from '../../services/usersService';
 import { CreateUserBodySchema, UpdateUserBodySchema } from './schemas';
 import { AppError } from '../../lib/errors';
 import { getLogger } from '../../lib/logger';
+import type { UserListResult } from '../../types/user';
 
 export async function listUsersOp(req: AppRequest) {
-  const { method } = req;
+  const { method, query } = req;
   const logger = getLogger(req.correlationId);
-  logger.info('Listing users');
-  const users = await svc.listUsers();
-  return buildResponse(200, { domain: 'users', method, users });
+  const { nextToken, limit: limitRaw } = query ?? {};
+  let limit: number | undefined;
+  if (limitRaw !== undefined) {
+    const parsed = Number(limitRaw);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      throw AppError.badRequest('Invalid limit parameter');
+    }
+    limit = parsed;
+  }
+  logger.info('Listing users', { limit, hasNextToken: Boolean(nextToken) });
+  let usersResponse: UserListResult | undefined;
+  try {
+    usersResponse = await svc.listUsers({
+      limit,
+      nextToken: nextToken ?? undefined,
+    });
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === 'Invalid pagination token'
+    ) {
+      throw AppError.badRequest('Invalid pagination token');
+    }
+    throw error;
+  }
+  const { users, nextToken: token } =
+    usersResponse ?? ({ users: [], nextToken: undefined } as UserListResult);
+  return buildResponse(200, {
+    domain: 'users',
+    method,
+    users,
+    ...(token ? { nextToken: token } : {}),
+  });
 }
 
 export async function getUserOp(req: AppRequest) {

@@ -1,12 +1,15 @@
-export type User = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  createdAt: string;
-  modifiedAt: string;
-};
+import type { EntityItem } from 'dynamodb-toolbox';
+import type { userEntity } from '../data/usersEntity';
 
-export type NewUser = {
-  firstName: string;
-  lastName: string;
+type DbUser = EntityItem<typeof userEntity>;
+
+export type User = Omit<DbUser, 'entityType'>;
+export type NewUser = Pick<User, 'firstName' | 'lastName'>;
+export type UserListOptions = {
+  limit?: number;
+  nextToken?: string;
+};
+export type UserListResult = {
+  users: User[];
+  nextToken?: string;
 };

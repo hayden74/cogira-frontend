@@ -7,11 +7,15 @@ vi.mock('../data/usersRepo', () => {
       id: _id,
       createdAt: 't',
       modifiedAt: 't',
+      entityType: 'USER',
     })),
-    listAll: vi.fn(async () => [
-      { id: 'u1', createdAt: 't', modifiedAt: 't' },
-      { id: 'u2', createdAt: 't', modifiedAt: 't' },
-    ]),
+    listAll: vi.fn(async () => ({
+      items: [
+        { id: 'u1', createdAt: 't', modifiedAt: 't', entityType: 'USER' },
+        { id: 'u2', createdAt: 't', modifiedAt: 't', entityType: 'USER' },
+      ],
+      nextToken: 'token-1',
+    })),
     update: vi.fn(async (_id: string, _patch: any) => {}),
     remove: vi.fn(async (_id: string) => {}),
   };
@@ -36,6 +40,9 @@ describe('usersService', () => {
     const input = { firstName: 'Alice', lastName: 'Doe' };
     const user = await createUser(input);
     expect(user).toMatchObject(input);
+    expect(repo.create).toHaveBeenCalledWith(
+      expect.objectContaining({ entityType: 'USER' })
+    );
   });
 
   it('getUser delegates to repo.getById', async () => {
@@ -46,8 +53,18 @@ describe('usersService', () => {
 
   it('listUsers returns all users from repo', async () => {
     const res = await listUsers();
-    expect(res).toHaveLength(2);
+    expect(res.users).toHaveLength(2);
+    expect(res.nextToken).toBe('token-1');
+    expect(res.users[0]).not.toHaveProperty('entityType');
     expect(repo.listAll).toHaveBeenCalledTimes(1);
+  });
+
+  it('listUsers forwards pagination options', async () => {
+    await listUsers({ limit: 20, nextToken: 'abc' });
+    expect(repo.listAll).toHaveBeenCalledWith({
+      limit: 20,
+      nextToken: 'abc',
+    });
   });
 
   it('updateUser applies patch and returns updated user', async () => {
@@ -58,6 +75,7 @@ describe('usersService', () => {
       lastName: 'Doe',
       createdAt: 't',
       modifiedAt: 't',
+      entityType: 'USER',
     });
     const res = await updateUser('abc', { firstName: 'Bob' });
     expect(res).toMatchObject({ id: 'abc', firstName: 'Bob' });

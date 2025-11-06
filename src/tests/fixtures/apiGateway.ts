@@ -5,6 +5,7 @@ type MakeEventArgs = {
   method?: string;
   headers?: Record<string, string>;
   body?: any;
+  queryStringParameters?: Record<string, string | undefined>;
 };
 
 export function makeEvent({
@@ -12,16 +13,26 @@ export function makeEvent({
   method = 'GET',
   headers = {},
   body,
+  queryStringParameters,
 }: MakeEventArgs = {}): APIGatewayProxyEventV2 {
   // derive pathParameters for explicit routes like /resource/{id}
   let pathParameters: Record<string, string> | undefined;
   const m = path.match(/^\/?[^/]+\/(.+)$/);
   if (m) pathParameters = { id: m[1] };
+  const rawQueryString =
+    queryStringParameters && Object.keys(queryStringParameters).length > 0
+      ? Object.entries(queryStringParameters)
+          .filter(([_, value]) => value !== undefined)
+          .map(
+            ([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value ?? '')}`
+          )
+          .join('&')
+      : '';
   const payload: any = {
     version: '2.0',
     routeKey: '$default',
     rawPath: path,
-    rawQueryString: '',
+    rawQueryString,
     headers,
     requestContext: {
       accountId: 'test',
@@ -43,6 +54,10 @@ export function makeEvent({
     },
     isBase64Encoded: false,
     pathParameters,
+    queryStringParameters:
+      queryStringParameters && Object.keys(queryStringParameters).length > 0
+        ? queryStringParameters
+        : undefined,
     body:
       typeof body === 'string'
         ? body

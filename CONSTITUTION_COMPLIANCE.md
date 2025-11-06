@@ -23,7 +23,7 @@ This document tracks the implementation status of constitution requirements for 
 ### **Security & Middleware**
 
 - [x] Helmet.js for HTTP security headers
-- [?] express-rate-limit middleware for DDoS protection <!-- Replaced by AWS API Gateway throttling -->
+- [?] express-rate-limit middleware for DDoS protection <!-- Replaced by AWS API Gateway throttling --->
 - [x] CORS policy configuration
 - [x] Request size limits (10MB max payload)
 

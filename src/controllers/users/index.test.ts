@@ -12,7 +12,7 @@ vi.mock('../../services/usersService', () => ({
     createdAt: 't',
     modifiedAt: 't',
   })),
-  listUsers: vi.fn(async () => []),
+  listUsers: vi.fn(async () => ({ users: [], nextToken: undefined })),
   updateUser: vi.fn(async (id: string, input: any) => ({
     id,
     ...input,
@@ -32,7 +32,21 @@ describe('usersHandlers', () => {
       makeEvent({ path: '/users', method: 'GET' })
     );
     const body = expectJson(res, 200);
-    expect(body).toMatchObject({ domain: 'users', method: 'GET' });
+    expect(body).toMatchObject({ domain: 'users', method: 'GET', users: [] });
+  });
+
+  it('passes pagination params to service', async () => {
+    await usersHandlers(
+      makeEvent({
+        path: '/users',
+        method: 'GET',
+        queryStringParameters: { limit: '10', nextToken: 'abc' },
+      })
+    );
+    expect(svc.listUsers).toHaveBeenCalledWith({
+      limit: 10,
+      nextToken: 'abc',
+    });
   });
 
   it('returns 201 for POST /users', async () => {
@@ -110,5 +124,32 @@ describe('usersHandlers', () => {
     await expect(
       usersHandlers(makeEvent({ path: '/users/missing', method: 'GET' }))
     ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('rejects invalid limit parameter', async () => {
+    await expect(
+      usersHandlers(
+        makeEvent({
+          path: '/users',
+          method: 'GET',
+          queryStringParameters: { limit: 'not-a-number' },
+        })
+      )
+    ).rejects.toBeInstanceOf(AppError);
+  });
+
+  it('rejects invalid pagination token', async () => {
+    (svc.listUsers as any).mockRejectedValueOnce(
+      new Error('Invalid pagination token')
+    );
+    await expect(
+      usersHandlers(
+        makeEvent({
+          path: '/users',
+          method: 'GET',
+          queryStringParameters: { nextToken: 'bad-token' },
+        })
+      )
+    ).rejects.toMatchObject({ status: 400 });
   });
 });

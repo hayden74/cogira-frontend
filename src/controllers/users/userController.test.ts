@@ -1,8 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../../services/usersService', () => ({
-  listUsers: vi.fn(async () => [
-    { id: '1', firstName: 'A', lastName: 'B', createdAt: '', modifiedAt: '' },
-  ]),
+  listUsers: vi.fn(async () => ({
+    users: [
+      { id: '1', firstName: 'A', lastName: 'B', createdAt: '', modifiedAt: '' },
+    ],
+    nextToken: 'token',
+  })),
   getUser: vi.fn(async (id: string) =>
     id === 'exists'
       ? { id, firstName: 'A', lastName: 'B', createdAt: '', modifiedAt: '' }
@@ -47,6 +50,7 @@ describe('users controller router', () => {
     const body = parseBody(res);
     expect(body.domain).toBe('users');
     expect(Array.isArray(body.users)).toBe(true);
+    expect(body.nextToken).toBe('token');
   });
 
   it('routes GET /users/:id and returns 404 for missing', async () => {

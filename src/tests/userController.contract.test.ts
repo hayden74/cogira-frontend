@@ -1,14 +1,17 @@
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('../services/usersService', () => ({
-  listUsers: vi.fn(async () => [
-    {
-      id: '1',
-      firstName: 'A',
-      lastName: 'B',
-      createdAt: '2023-01-01',
-      modifiedAt: '2023-01-01',
-    },
-  ]),
+  listUsers: vi.fn(async () => ({
+    users: [
+      {
+        id: '1',
+        firstName: 'A',
+        lastName: 'B',
+        createdAt: '2023-01-01',
+        modifiedAt: '2023-01-01',
+      },
+    ],
+    nextToken: 'token',
+  })),
   getUser: vi.fn(async () => ({
     id: '1',
     firstName: 'A',
@@ -44,6 +47,7 @@ describe('userController contract tests', () => {
     expect(body).toHaveProperty('domain', 'users');
     expect(body).toHaveProperty('method', 'GET');
     expect(body).toHaveProperty('users');
+    expect(body).toHaveProperty('nextToken', 'token');
     expect(Array.isArray(body.users)).toBe(true);
 
     // Validate user schema

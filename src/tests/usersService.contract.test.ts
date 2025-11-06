@@ -7,8 +7,20 @@ vi.mock('../data/usersRepo', () => ({
     lastName: 'B',
     createdAt: 't',
     modifiedAt: 't',
+    entityType: 'USER',
   })),
-  listAll: vi.fn(async () => []),
+  listAll: vi.fn(async () => ({
+    items: [
+      {
+        id: '1',
+        firstName: 'A',
+        lastName: 'B',
+        createdAt: 't',
+        modifiedAt: 't',
+        entityType: 'USER',
+      },
+    ],
+  })),
   update: vi.fn(),
   remove: vi.fn(),
 }));
@@ -64,10 +76,11 @@ describe('usersService contract tests', () => {
   it('listUsers returns array with consistent user schema', async () => {
     const result = await listUsers();
 
-    expect(Array.isArray(result)).toBe(true);
+    expect(Array.isArray(result.users)).toBe(true);
+    expect(result).toHaveProperty('nextToken');
 
     // If users exist, validate schema consistency
-    result.forEach((user) => {
+    result.users.forEach((user) => {
       expect(user).toHaveProperty('id');
       expect(user).toHaveProperty('createdAt');
       expect(user).toHaveProperty('modifiedAt');
