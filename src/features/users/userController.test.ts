@@ -31,6 +31,8 @@ import { handleUsers } from './userController';
 const makeReq = (over: Partial<AppRequest>): AppRequest => ({
   method: 'GET',
   path: '/users',
+  rawPath: '/users',
+  basePath: '',
   query: {},
   params: {},
   body: {},
@@ -73,3 +75,4 @@ describe('users controller router', () => {
     ).rejects.toMatchObject({ status: 400 });
   });
 });
+

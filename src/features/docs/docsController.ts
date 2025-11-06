@@ -14,17 +14,18 @@ const swaggerUiHtml = `<!DOCTYPE html>
     <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
     <script>
       window.onload = () => {
-        SwaggerUIBundle({
-          url: '/docs/openapi.json',
-          dom_id: '#swagger-ui',
-        });
+        const p = window.location.pathname;
+        const base = p.endsWith('/') ? p.slice(0, -1) : p;
+        const url = base + '/openapi.json';
+        SwaggerUIBundle({ url, dom_id: '#swagger-ui' });
       };
     </script>
   </body>
-</html>`;
+  </html>`;
 
 export async function handleDocs(req: AppRequest) {
-  const normalized = req.path.replace(/\/+$/, '');
+  const p = req.path;
+  const normalized = p.endsWith('/') ? p.slice(0, -1) : p;
   if (normalized === '/docs/openapi.json') {
     return buildResponse(200, openApiDocument);
   }
@@ -35,3 +36,4 @@ export async function handleDocs(req: AppRequest) {
     body: swaggerUiHtml,
   };
 }
+

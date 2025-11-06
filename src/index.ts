@@ -11,7 +11,7 @@ import { cors } from './lib/middy/cors';
 import { requestSizeLimit } from './lib/middy/requestSizeLimit';
 import { parseEvent } from './lib/request';
 import { routeRequest } from './lib/router';
-import { handlerRegistry } from './controllers';
+import { handlerRegistry } from './features';
 
 export const baseHandler = async (
   event: APIGatewayProxyEventV2,

@@ -11,13 +11,15 @@ vi.mock('../services/usersService', () => ({
   updateUser: vi.fn(async () => null),
   deleteUser: vi.fn(async () => {}),
 }));
-import { handleUsers } from '../controllers/users/userController';
+import { handleUsers } from '../features/users/userController';
 import { AppError } from '../lib/errors';
 import type { AppRequest } from '../lib/request';
 
 const makeReq = (over: Partial<AppRequest>): AppRequest => ({
   method: 'GET',
   path: '/users',
+  rawPath: '/users',
+  basePath: '',
   query: {},
   params: {},
   body: {},

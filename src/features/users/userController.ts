@@ -77,7 +77,7 @@ export async function createUserOp(req: AppRequest) {
     201,
     { domain: 'users', method, user },
     {
-      Location: `/users/${user.id}`,
+      Location: `${req.basePath || ''}/users/${user.id}`,
     }
   );
 }

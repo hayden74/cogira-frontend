@@ -26,12 +26,14 @@ vi.mock('../services/usersService', () => ({
     modifiedAt: '2023-01-01',
   })),
 }));
-import { handleUsers } from '../controllers/users/userController';
+import { handleUsers } from '../features/users/userController';
 import type { AppRequest } from '../lib/request';
 
 const makeReq = (over: Partial<AppRequest>): AppRequest => ({
   method: 'GET',
   path: '/users',
+  rawPath: '/users',
+  basePath: '',
   query: {},
   params: {},
   body: {},
