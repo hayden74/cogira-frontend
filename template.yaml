@@ -15,6 +15,13 @@ Parameters:
     Type: String
     Description: Name of the DynamoDB table used to store users
     Default: UsersTable
+  EnablePITR:
+    Type: String
+    Description: Enable DynamoDB Point-in-Time Recovery (overrides env defaults)
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Default: 'false'
 
 Globals:
   Function:
@@ -31,6 +38,11 @@ Globals:
 
 Conditions:
   IsProd: !Equals [!Ref Environment, 'prod']
+  IsStaging: !Equals [!Ref Environment, 'staging']
+  PITREnabled: !Or
+    - !Equals [!Ref EnablePITR, 'true']
+    - !Equals [!Ref Environment, 'prod']
+    - !Equals [!Ref Environment, 'staging']
 
 Resources:
   HttpApi:
@@ -62,6 +74,10 @@ Resources:
     Properties:
       TableName: !Sub '${UsersTableName}-${Environment}'
       BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification: !If
+        - PITREnabled
+        - PointInTimeRecoveryEnabled: true
+        - !Ref AWS::NoValue
       AttributeDefinitions:
         - AttributeName: id
           AttributeType: S

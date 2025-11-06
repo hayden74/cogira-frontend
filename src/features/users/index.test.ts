@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { AppError } from '../../lib/errors';
-vi.mock('../../services/usersService', () => ({
+vi.mock('./usersService', () => ({
   createUser: vi.fn(async (input: any) => ({
     id: 'u-1',
     ...input,
@@ -23,7 +23,7 @@ vi.mock('../../services/usersService', () => ({
 }));
 import { makeEvent } from '../../tests/fixtures/apiGateway';
 import { expectJson, getHeader } from '../../tests/utils/http';
-import * as svc from '../../services/usersService';
+import * as svc from './usersService';
 import { usersHandlers } from './index';
 
 describe('usersHandlers', () => {

@@ -9,5 +9,5 @@
     "forceConsistentCasingInFileNames": true,
     "types": ["aws-lambda", "vitest/globals"]
   },
-  "include": ["**/*.ts"]
+  "include": ["**/*.ts", "**/*.d.ts"]
 }

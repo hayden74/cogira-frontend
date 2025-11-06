@@ -28,7 +28,7 @@ vi.mock('dayjs', () => ({
   default: () => ({ toISOString: () => '2023-01-01T00:00:00.000Z' }),
 }));
 vi.mock('uuid', () => ({ v4: () => 'uuid-123' }));
-import { createUser, getUser, listUsers } from '../services/usersService';
+import { createUser, getUser, listUsers } from '../features/users/usersService';
 
 describe('usersService contract tests', () => {
   it('createUser returns user with required fields and correct types', async () => {

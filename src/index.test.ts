@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-vi.mock('./services/usersService');
+vi.mock('./features/users/usersService');
 import { baseHandler } from './index';
 import { makeEvent } from './tests/fixtures/apiGateway';
 import { expectJson } from './tests/utils/http';

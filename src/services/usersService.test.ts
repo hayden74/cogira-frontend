@@ -29,7 +29,7 @@ import {
   listUsers,
   updateUser,
   deleteUser,
-} from './usersService';
+} from '../features/users/usersService';
 
 describe('usersService', () => {
   beforeEach(() => {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-vi.mock('../services/usersService', () => ({
+vi.mock('../features/users/usersService', () => ({
   listUsers: vi.fn(async () => ({
     users: [
       {

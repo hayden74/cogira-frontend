@@ -1,7 +1,6 @@
-import type { EntityItem } from 'dynamodb-toolbox';
-import type { userEntity } from '../data/usersEntity';
+import type { UserItem } from '../data/usersEntity';
 
-type DbUser = EntityItem<typeof userEntity>;
+type DbUser = UserItem;
 
 export type User = Omit<DbUser, 'entityType'>;
 export type NewUser = Pick<User, 'firstName' | 'lastName'>;

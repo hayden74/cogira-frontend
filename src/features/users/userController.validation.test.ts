@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-vi.mock('../../services/usersService', () => ({
+vi.mock('./usersService', () => ({
   updateUser: vi.fn(async () => ({
     id: 'x',
     firstName: 'A',

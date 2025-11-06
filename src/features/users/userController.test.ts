@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-vi.mock('../../services/usersService', () => ({
+vi.mock('./usersService', () => ({
   listUsers: vi.fn(async () => ({
     users: [
       { id: '1', firstName: 'A', lastName: 'B', createdAt: '', modifiedAt: '' },

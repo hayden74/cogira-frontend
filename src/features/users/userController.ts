@@ -1,6 +1,6 @@
 import { buildResponse } from '../../lib/http';
 import type { AppRequest } from '../../lib/request';
-import * as svc from '../../services/usersService';
+import * as svc from './usersService';
 import {
   validateCreateUser,
   validateUpdateUser,
@@ -20,7 +20,7 @@ export async function listUsersOp(req: AppRequest) {
   if (limitRaw !== undefined) {
     const parsed = Number(limitRaw);
     if (!Number.isInteger(parsed) || parsed <= 0) {
-      throw AppError.badRequest('Invalid limit parameter');
+      throw AppError.badRequest('Invalid limit parameter.');
     }
     limit = parsed;
   }

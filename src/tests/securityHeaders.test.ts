@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 vi.mock(
-  '../services/usersService',
-  () => import('../__mocks__/@/services/usersService')
+  '../features/users/usersService',
+  () => import('../__mocks__/@/features/users/usersService')
 );
 import { handler } from '../index';
 import { makeEvent } from './fixtures/apiGateway';

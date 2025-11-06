@@ -1,10 +1,4 @@
-import {
-  Entity,
-  EntityRepository,
-  Table,
-  schema,
-  type EntityItem,
-} from 'dynamodb-toolbox';
+import { Entity, EntityRepository, Table, schema } from 'dynamodb-toolbox';
 import { docClient } from './ddb/client';
 
 const USERS_TABLE_NAME = process.env.USERS_TABLE || 'UsersTable';
@@ -17,6 +11,7 @@ export const usersTable = new Table({
   documentClient: docClient,
   indexes: {
     [USER_ENTITY_INDEX]: {
+      type: 'global',
       partitionKey: { name: 'entityType', type: 'string' },
       sortKey: { name: 'createdAt', type: 'string' },
     },
@@ -38,5 +33,12 @@ export const userEntity = new Entity({
   }),
 } as const);
 
-export type UserItem = EntityItem<typeof userEntity>;
+export type UserItem = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  createdAt: string;
+  modifiedAt: string;
+  entityType: typeof USER_ENTITY_TYPE;
+};
 export const userRepository = userEntity.build(EntityRepository);
