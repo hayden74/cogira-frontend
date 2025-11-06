@@ -1,24 +1,24 @@
 Testing conventions
 
 - Structure
-  - Unit tests live under `src/tests/unit/**` and mirror the app structure (e.g. `controllers/`, `services/`).
-  - Integration tests live under `src/tests/integration/**` and exercise handler + routing.
+  - Feature unit tests colocate under `src/features/**` (e.g., `src/features/users/*.test.ts`).
+  - Cross-cutting/unit tests live under `src/tests/**` (e.g., `request.test.ts`, `cors.test.ts`).
+  - Integration tests live under `src/tests/integration/**` and exercise `index.handler` end‑to‑end.
   - Shared helpers live in `src/tests/utils/**` and `src/tests/fixtures/**`.
 
 - Naming
-  - Use `*.test.ts` filenames with clear subjects, e.g. `userController.test.ts`, `usersService.test.ts`.
-  - Prefer describing behavior in `describe`/`it` titles (e.g. "returns 404 when user missing").
+  - Use `*.test.ts` filenames with clear subjects and behavior‑oriented titles.
 
 - Mocks
-  - Use `vi.mock()` close to the top of the test file for module-scoped mocks.
-  - For reusable mocks, place manual mocks under `src/__mocks__` and let Vitest resolve them automatically. For aliased imports like `@/services/usersService`, mirror the specifier path under `src/__mocks__/@/...`.
+  - Use `vi.mock()` near the top of each test.
+  - Place reusable manual mocks under `src/__mocks__`, including path-mirroring under `src/__mocks__/@/...` when needed.
 
 - HTTP helpers
   - Use `makeEvent` from `fixtures/apiGateway` to build API Gateway events.
   - Use `expectJson` and `getHeader` from `utils/http` to assert responses.
 
 - Coverage
-  - App code is included by default; tests are excluded. Coverage config lives in `src/vitest.config.ts`.
+  - Coverage config lives in `src/vitest.config.ts`; tests are excluded by default.
 
 - Imports
-  - Use the `@` alias for root imports (e.g., `@/services/usersService`, `@/lib/request`, `@/tests/utils/http`).
+  - Use relative imports; path aliases are not configured in this project.

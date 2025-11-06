@@ -20,7 +20,7 @@ export async function listUsersOp(req: AppRequest) {
   if (limitRaw !== undefined) {
     const parsed = Number(limitRaw);
     if (!Number.isInteger(parsed) || parsed <= 0) {
-      throw AppError.badRequest('Invalid limit parameter.');
+      throw AppError.badRequest('Invalid limit parameter..');
     }
     limit = parsed;
   }
