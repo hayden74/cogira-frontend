@@ -121,6 +121,18 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /users/{id}
             Method: DELETE
+        GetDocs:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /docs
+            Method: GET
+        GetDocsProxy:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /docs/{proxy+}
+            Method: GET
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Sub '${UsersTableName}-${Environment}'

@@ -1,7 +1,13 @@
 import { buildResponse } from '../../lib/http';
 import type { AppRequest } from '../../lib/request';
 import * as svc from '../../services/usersService';
-import { CreateUserBodySchema, UpdateUserBodySchema } from './schemas';
+import {
+  validateCreateUser,
+  validateUpdateUser,
+  formatValidationErrors,
+  type CreateUserBody,
+  type UpdateUserBody,
+} from './validators';
 import { AppError } from '../../lib/errors';
 import { getLogger } from '../../lib/logger';
 import type { UserListResult } from '../../types/user';
@@ -57,11 +63,16 @@ export async function getUserOp(req: AppRequest) {
 export async function createUserOp(req: AppRequest) {
   const { method, body } = req;
   const logger = getLogger(req.correlationId);
-  const parsed = CreateUserBodySchema.safeParse(body ?? {});
-  if (!parsed.success)
-    throw AppError.badRequest('Invalid body', parsed.error.issues);
-  logger.info('Creating user', { name: parsed.data.name });
-  const user = await svc.createUser(parsed.data);
+  const payload = (body ?? {}) as unknown;
+  if (!validateCreateUser(payload)) {
+    throw AppError.badRequest(
+      'Invalid body',
+      formatValidationErrors(validateCreateUser.errors)
+    );
+  }
+  const data = payload as CreateUserBody;
+  logger.info('Creating user', { name: data.firstName });
+  const user = await svc.createUser(data);
   return buildResponse(
     201,
     { domain: 'users', method, user },
@@ -77,11 +88,16 @@ export async function updateUserOp(req: AppRequest) {
   if (!id || id === 'null' || id === 'undefined')
     throw AppError.badRequest('Invalid id parameter');
   const logger = getLogger(req.correlationId);
-  const parsed = UpdateUserBodySchema.safeParse(body ?? {});
-  if (!parsed.success)
-    throw AppError.badRequest('Invalid body', parsed.error.issues);
+  const payload = (body ?? {}) as unknown;
+  if (!validateUpdateUser(payload)) {
+    throw AppError.badRequest(
+      'Invalid body',
+      formatValidationErrors(validateUpdateUser.errors)
+    );
+  }
+  const data = payload as UpdateUserBody;
   logger.info('Updating user', { id });
-  const user = await svc.updateUser(id, parsed.data);
+  const user = await svc.updateUser(id, data);
   if (!user) throw AppError.notFound('User not found', { id });
   return buildResponse(200, { domain: 'users', method, user });
 }

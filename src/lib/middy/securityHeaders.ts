@@ -25,7 +25,7 @@ export const securityHeaders = (): MiddlewareObj<
 
     // Content Security Policy - prevent XSS attacks
     headers['Content-Security-Policy'] =
-      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; font-src 'self'; object-src 'none'; media-src 'self'; frame-src 'none'";
+      "default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: https:; connect-src 'self'; font-src 'self' https://unpkg.com; object-src 'none'; media-src 'self'; frame-src 'none'";
 
     // Prevent clickjacking
     headers['X-Frame-Options'] = 'DENY';

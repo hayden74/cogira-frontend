@@ -11,6 +11,21 @@ describe('router: delegation', () => {
     expect(body.domain).toBe('users');
   });
 
+  it('serves docs landing page', async () => {
+    const res = await baseHandler(makeEvent({ path: '/docs', method: 'GET' }));
+    expect(res.statusCode).toBe(200);
+    expect(res.headers?.['Content-Type']).toBe('text/html');
+    expect(res.body).toContain('SwaggerUIBundle');
+  });
+
+  it('serves OpenAPI document', async () => {
+    const res = await baseHandler(
+      makeEvent({ path: '/docs/openapi.json', method: 'GET' })
+    );
+    const body = expectJson(res, 200);
+    expect(body.openapi).toBe('3.0.3');
+  });
+
   it('returns 404 for unknown domain', async () => {
     const res = await baseHandler(
       makeEvent({ path: '/unknown', method: 'GET' })
