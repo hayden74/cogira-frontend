@@ -44,5 +44,14 @@ export function parseEvent(
   const correlationId =
     context?.correlationId || event.requestContext?.requestId;
 
-  return { method, path, rawPath, basePath, query, params, body, correlationId };
+  return {
+    method,
+    path,
+    rawPath,
+    basePath,
+    query,
+    params,
+    body,
+    correlationId,
+  };
 }

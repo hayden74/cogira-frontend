@@ -24,7 +24,8 @@ export function makeEvent({
       ? Object.entries(queryStringParameters)
           .filter(([_, value]) => value !== undefined)
           .map(
-            ([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value ?? '')}`
+            ([key, value]) =>
+              `${encodeURIComponent(key)}=${encodeURIComponent(value ?? '')}`
           )
           .join('&')
       : '';

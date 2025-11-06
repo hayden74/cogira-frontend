@@ -36,4 +36,3 @@ export async function handleDocs(req: AppRequest) {
     body: swaggerUiHtml,
   };
 }
-

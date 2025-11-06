@@ -15,7 +15,10 @@ describe('users validators (AJV schemas)', () => {
   });
 
   it('rejects CreateUser with script tag and reports path', () => {
-    const payload = { firstName: "<script>alert('x')</script>", lastName: 'Doe' };
+    const payload = {
+      firstName: "<script>alert('x')</script>",
+      lastName: 'Doe',
+    };
     const ok = validateCreateUser(payload);
     const errs = formatValidationErrors(validateCreateUser.errors);
     expect(ok).toBe(false);
@@ -31,4 +34,3 @@ describe('users validators (AJV schemas)', () => {
     expect(bad).toBe(false);
   });
 });
-

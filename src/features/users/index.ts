@@ -1,4 +1,7 @@
-import { APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2 } from 'aws-lambda';
+import {
+  APIGatewayProxyEventV2,
+  APIGatewayProxyStructuredResultV2,
+} from 'aws-lambda';
 
 import { handleUsers } from './userController';
 import { parseEvent } from '../../lib/request';
@@ -9,4 +12,3 @@ export async function usersHandlers(
   const req = parseEvent(event);
   return handleUsers(req);
 }
-

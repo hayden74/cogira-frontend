@@ -18,4 +18,3 @@ describe('OpenAPI document merge', () => {
     expect(typeof doc.components.schemas).toBe('object');
   });
 });
-

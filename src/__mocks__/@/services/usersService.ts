@@ -21,9 +21,11 @@ export const getUser = vi.fn(
   })
 );
 
-export const listUsers = vi.fn(async (): Promise<UserListResult> => ({
-  users: [],
-}));
+export const listUsers = vi.fn(
+  async (): Promise<UserListResult> => ({
+    users: [],
+  })
+);
 
 export const updateUser = vi.fn(
   async (id: string, input: Partial<NewUser>): Promise<User> => ({

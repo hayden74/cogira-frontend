@@ -16,4 +16,3 @@ describe('request parser: API versioning normalization', () => {
     expect(req.rawPath).toBe('/api/v1/users/123');
   });
 });
-

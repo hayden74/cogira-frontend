@@ -75,4 +75,3 @@ describe('users controller router', () => {
     ).rejects.toMatchObject({ status: 400 });
   });
 });
-

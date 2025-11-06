@@ -153,4 +153,3 @@ describe('usersHandlers', () => {
     ).rejects.toMatchObject({ status: 400 });
   });
 });
-

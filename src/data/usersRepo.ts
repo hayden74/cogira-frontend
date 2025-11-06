@@ -15,8 +15,12 @@ type ListResult = {
   nextToken?: string;
 };
 
-const encodeToken = (key?: Record<string, unknown> | undefined): string | undefined =>
-  key ? Buffer.from(JSON.stringify(key), 'utf-8').toString('base64') : undefined;
+const encodeToken = (
+  key?: Record<string, unknown> | undefined
+): string | undefined =>
+  key
+    ? Buffer.from(JSON.stringify(key), 'utf-8').toString('base64')
+    : undefined;
 
 const decodeToken = (token?: string): Record<string, unknown> | undefined => {
   if (!token) return undefined;

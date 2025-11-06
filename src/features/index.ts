@@ -6,4 +6,3 @@ export const handlerRegistry: HandlerRegistry = {
   users: handleUsers,
   docs: handleDocs,
 };
-
