@@ -97,4 +97,3 @@ describe('usersService', () => {
     expect(repo.remove).toHaveBeenCalledWith('abc');
   });
 });
-
