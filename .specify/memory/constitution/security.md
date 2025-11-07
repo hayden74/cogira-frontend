@@ -32,10 +32,10 @@ Project: Cogira Backend
 | Principle              | Requirement                        | Priority | Enforcement         |
 | ---------------------- | ---------------------------------- | -------- | ------------------- |
 | **Least Privilege**    | IAM roles with minimal permissions | MUST     | IAM review          |
-| **Zero Trust**         | Verify JWT tokens on every request | MUST     | Security audit      |
+| **Zero Trust**         | Require auth on protected routes    | MUST     | Security audit      |
 | **Defense in Depth**   | API Gateway + Lambda + DB security | MUST     | Architecture review |
 | **Fail Secure**        | Default deny, explicit allow       | MUST     | Code review         |
-| **Complete Mediation** | PassportJS middleware validation   | MUST     | Security testing    |
+| **Complete Mediation** | Enforce authz checks via middleware | MUST     | Security testing    |
 
 ---
 
@@ -43,14 +43,15 @@ Project: Cogira Backend
 
 | Security Control      | Requirement                      | Priority | Validation           |
 | --------------------- | -------------------------------- | -------- | -------------------- |
-| **Authentication**    | JWT Bearer tokens via PassportJS | MUST     | Security review      |
+| **Authentication**    | JWT Bearer tokens for protected routes                        | MUST     | Security review      |
 | Multi-Factor Auth     | MFA required for admin endpoints | MUST     | Admin access         |
-| Token Management      | RS256 signing, 15min expiry      | MUST     | Automated validation |
-| Session Expiration    | Refresh tokens max 7 days        | MUST     | Security config      |
-| **Authorization**     | Role-based claims in JWT         | MUST     | Permission testing   |
-| RBAC Implementation   | User roles: admin, user, guest   | MUST     | Architecture review  |
+| Token Management      | If token-based: define signing/expiry policy | SHOULD   | Automated validation |
+| Session Expiration    | If refresh tokens used: define max lifetime  | SHOULD   | Security config      |
+| **Authorization**     | Role-/attribute-based claims (domain-defined) | MUST     | Permission testing   |
+| RBAC Implementation   | Define roles/attributes per domain (least privilege) | MUST     | Architecture review  |
 | Permission Boundaries | Scope-based endpoint access      | MUST     | Code review          |
 | Token Rotation        | Refresh token rotation on use    | MUST     | Automated            |
+| Public Endpoints      | Allow-list unauthenticated routes (e.g., login, register, forgot-password) | MUST     | Security review      |
 
 ---
 
@@ -73,7 +74,7 @@ Project: Cogira Backend
 
 | Security Control           | Requirement                             | Priority | Protection Against   |
 | -------------------------- | --------------------------------------- | -------- | -------------------- |
-| **Input Validation**       | AJV schema validation middleware        | MUST     | Injection attacks    |
+| **Input Validation**       | JSON schema validation (e.g., AJV)      | MUST     | Injection attacks    |
 | NoSQL Injection Prevention | Validate DynamoDB query parameters      | MUST     | NoSQL injection      |
 | XSS Prevention             | Sanitize all output, no HTML responses  | MUST     | XSS attacks          |
 | Command Injection          | No shell execution, validate file paths | MUST     | OS command injection |
@@ -91,7 +92,7 @@ Project: Cogira Backend
 | **API Keys**             | AWS Secrets Manager with versioning   | MUST     | Secrets manager    |
 | **Database Credentials** | IAM roles for DynamoDB access         | MUST     | IAM authentication |
 | **Encryption Keys**      | AWS KMS customer managed keys         | MUST     | KMS with rotation  |
-| **JWT Secrets**          | RSA key pairs in Secrets Manager      | MUST     | Asymmetric signing |
+| Auth Signing Material    | If tokens used: manage keys/secrets in Secrets Manager | SHOULD   | Key custody       |
 | **Secret Rotation**      | Automated 90-day rotation             | MUST     | Lambda rotation    |
 | Environment Separation   | Separate AWS accounts per environment | MUST     | Account isolation  |
 
@@ -109,7 +110,7 @@ Project: Cogira Backend
 
 | Event Type                 | Logging Requirement                   | Priority | Retention Period   |
 | -------------------------- | ------------------------------------- | -------- | ------------------ |
-| **Authentication Events**  | Log all JWT token validation attempts | MUST     | 90 days retention  |
+| **Authentication Events**  | Log auth successes and failures       | MUST     | 90 days retention  |
 | Failed Login Attempts      | Log all failures with context         | MUST     | 90 days retention  |
 | **Authorization Failures** | Log unauthorized access attempts      | MUST     | 90 days retention  |
 | Privilege Escalation       | Log all attempts                      | MUST     | 90 days retention  |

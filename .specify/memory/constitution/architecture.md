@@ -31,7 +31,7 @@ Project: Cogira Backend
 
 | Principle               | Description                                | Priority | Implementation                    |
 | ----------------------- | ------------------------------------------ | -------- | --------------------------------- |
-| **Design Pattern**      | Layered Architecture (MVC) with Express.js | MUST     | Controller → Service → Repository |
+| **Design Pattern**      | Layered Architecture for Lambda            | MUST     | Handler → Router → Service → Repository |
 | Service Responsibility  | Single responsibility per service class    | MUST     | One concern per service           |
 | State Management        | Stateless Lambda functions                 | MUST     | No persistent state               |
 | Component Separation    | Clear layer boundaries with interfaces     | MUST     | Dependency injection              |
@@ -51,7 +51,7 @@ Project: Cogira Backend
 | **Shared Components**   | `src/shared/` for common utilities       | MUST     | Cross-cutting concerns                    |
 | **Configuration**       | `src/config/` for app configuration      | MUST     | Environment-specific                      |
 | **Types Definition**    | `src/types/` for shared interfaces       | MUST     | TypeScript definitions                    |
-| **Middleware**          | `src/middleware/` for Express middleware | MUST     | Reusable middleware                       |
+| **Middleware**          | `src/lib/middy/` for Middy middleware   | MUST     | Reusable middleware                       |
 
 ### Directory Structure Example
 
@@ -72,7 +72,7 @@ src/
 │   ├── utils/
 │   ├── validators/
 │   └── constants/
-├── middleware/
+├── lib/middy/
 ├── config/
 └── types/
 ```
@@ -83,7 +83,7 @@ src/
 
 | Component        | Responsibility                        | Pattern               | Notes                                  |
 | ---------------- | ------------------------------------- | --------------------- | -------------------------------------- |
-| **Handlers**     | Lambda event processing, HTTP routing | Express Router        | Thin controllers, delegate to services |
+| **Handlers**     | Lambda event processing, HTTP routing | Internal router       | Thin controllers, delegate to services |
 | **Services**     | Business logic, orchestration         | Service classes       | Pure functions, dependency injection   |
 | **Repositories** | DynamoDB operations, data mapping     | Repository pattern    | Abstract AWS SDK calls                 |
 | **Models/DTOs**  | Type definitions, data validation     | TypeScript interfaces | Immutable, validated structures        |
@@ -140,20 +140,20 @@ src/
 
 | Standard Area           | Requirement                              | Priority | Validation              |
 | ----------------------- | ---------------------------------------- | -------- | ----------------------- |
-| **Security Headers**    | Helmet.js middleware for all routes      | MUST     | Automated scanning      |
+| **Security Headers**    | Security headers on all responses        | MUST     | Automated scanning      |
 | **CORS Policy**         | Restricted origins, credentials handling | MUST     | Security review         |
-| **Rate Limiting**       | Express rate-limit middleware            | MUST     | Load testing            |
-| **Request Size Limits** | 10MB max payload, configurable           | MUST     | Express body-parser     |
+| **Rate Limiting**       | API Gateway/WAF throttling               | MUST     | Load testing            |
+| **Request Size Limits** | 10MB max payload, configurable           | MUST     | API Gateway + middleware|
 | **Error Responses**     | Standardized JSON error format           | MUST     | API testing             |
 | Error Localization      | Accept-Language header support           | SHOULD   | i18n middleware         |
-| **Authentication**      | JWT Bearer tokens via PassportJS         | MUST     | Security audit          |
-| Token Validation        | Verify signature, expiration, scope      | MUST     | JWT middleware          |
-| **Authorization**       | Role-based access control (RBAC)         | MUST     | Permission middleware   |
-| **Input Validation**    | AJV schema validation middleware         | MUST     | Schema validation       |
+| **Authentication**      | Required on protected routes (mechanism-agnostic) | MUST     | Security audit          |
+| Token Validation        | Validate credentials per chosen mechanism| MUST     | Auth middleware         |
+| **Authorization**       | Role/attribute-based access control      | MUST     | Policy enforcement      |
+| **Input Validation**    | JSON schema validation (e.g., AJV)       | MUST     | Schema validation       |
 | Output Sanitization     | JSON sanitization, no HTML output        | MUST     | Output middleware       |
 | **Content-Type Check**  | Validate application/json requests       | MUST     | Content-type middleware |
 | **API Versioning**      | URL path versioning (/api/v1/)           | MUST     | Router configuration    |
-| **Throttling**          | API Gateway + Express rate limiting      | MUST     | DDoS protection         |
+| **Throttling**          | API Gateway throttling (+ optional app layer) | MUST     | DDoS protection         |
 | Geographic Controls     | CloudFront geo-restrictions              | SHOULD   | AWS configuration       |
 
 ---

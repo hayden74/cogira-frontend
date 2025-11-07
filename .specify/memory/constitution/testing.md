@@ -31,7 +31,7 @@ Project: Cogira Backend
 
 | Coverage Type | Requirement                    | Threshold              | Enforcement        |
 | ------------- | ------------------------------ | ---------------------- | ------------------ |
-| **Overall**   | Jest coverage reports          | 85% minimum            | Automated CI check |
+| **Overall**   | Jest/Vitest coverage reports   | 85% minimum            | Automated CI check |
 | Statement     | Statement coverage             | 85% minimum            | CI blocking        |
 | Branch        | Branch coverage                | 80% minimum            | CI blocking        |
 | Function      | Function coverage              | 90% minimum            | CI blocking        |
@@ -55,10 +55,10 @@ Project: Cogira Backend
 
 | Source File                       | Test File                                    | Location Rule            |
 | --------------------------------- | -------------------------------------------- | ------------------------ |
-| `src/services/user.ts`            | `src/services/user.test.ts`                  | Colocated Jest unit test |
-| `src/handlers/api.ts`             | `src/handlers/api.contract.test.ts`          | Colocated contract test  |
-| `src/handlers/auth.ts`            | `tests/integration/auth.integration.test.ts` | Supertest integration    |
-| `src/middleware/jwt.ts`           | `src/middleware/jwt.security.test.ts`        | Colocated security test  |
+| `src/services/user.ts`            | `src/services/user.test.ts`                  | Colocated unit test      |
+| `src/handlers/lambda.ts`          | `src/handlers/lambda.contract.test.ts`       | Colocated contract test  |
+| `src/handlers/auth.ts`            | `tests/integration/auth.integration.test.ts` | Lambda/API Gateway integration |
+| `src/lib/middy/auth.ts`           | `src/lib/middy/auth.security.test.ts`        | Colocated security test  |
 | `tests/e2e/user-flow.e2e.test.ts` | N/A                                          | Playwright end-to-end    |
 
 ---
@@ -70,18 +70,18 @@ Project: Cogira Backend
 | Requirement           | Description                                     | Priority | Validation     |
 | --------------------- | ----------------------------------------------- | -------- | -------------- |
 | Colocation            | Must be next to source file                     | MUST     | File structure |
-| Naming Convention     | `describe` blocks for functions, `it` for cases | MUST     | Jest standards |
-| Mocking Allowed       | Jest mocks for external dependencies            | MUST     | Code review    |
+| Naming Convention     | `describe` blocks for functions, `it` for cases | MUST     | Framework standards |
+| Mocking Allowed       | Framework mocks for external dependencies       | MUST     | Code review    |
 | External Dependencies | Mock DynamoDB, external APIs                    | MUST     | Test review    |
-| Fast Execution        | <100ms per test, <5s per suite                  | SHOULD   | Jest timeout   |
+| Fast Execution        | <100ms per test, <5s per suite                  | SHOULD   | Framework timeout |
 
 ### Integration Tests
 
 | Requirement     | Description                           | Priority | Validation     |
 | --------------- | ------------------------------------- | -------- | -------------- |
 | Location        | Dedicated `tests/integration/` dir    | MUST     | File structure |
-| Real Services   | Use Supertest for Express app testing | MUST     | Code review    |
-| Setup/Teardown  | Jest beforeAll/afterAll for DB setup  | MUST     | Test review    |
+| Real Services   | Invoke Lambda handler or SAM/API Gateway | MUST     | Code review    |
+| Setup/Teardown  | beforeAll/afterAll for DB setup        | MUST     | Test review    |
 | Logging         | Capture and verify log outputs        | MUST     | Code review    |
 | Error Scenarios | Test 4xx/5xx HTTP responses           | MUST     | Test coverage  |
 

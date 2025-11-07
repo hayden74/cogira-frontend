@@ -57,9 +57,9 @@ Project: Cogira Backend
 | Database Optimization  | Proper partition key design           | SHOULD   | Query performance         |
 | Database Monitoring    | CloudWatch metrics monitoring         | SHOULD   | Health metrics            |
 | Database Optional      | DynamoDB Streams for events           | COULD    | Advanced features         |
-| **HTTP Client**        | Axios for external API calls          | MUST     | Standardized HTTP client  |
-| **File Storage**       | AWS S3 + Multer middleware            | MUST     | File upload handling      |
-| **API Documentation**  | Swagger/OpenAPI 3 specification       | MUST     | Interactive API docs      |
+| **HTTP Client**        | Standard HTTP client via shared wrapper | SHOULD   | e.g., Axios if needed     |
+| **File Storage**       | AWS S3 with presigned URL workflow      | MUST     | Lambda-safe uploads       |
+| **API Documentation**  | Swagger/OpenAPI 3 specification         | SHOULD   | Interactive API docs      |
 | **Configuration**      | dotenv + AWS SSM Parameter Store      | MUST     | Environment management    |
 
 ### Technology Prohibitions (WON'T without RFC)
@@ -89,8 +89,8 @@ Project: Cogira Backend
 | **Validation**       | AJV for JSON schema validation        | MUST        | Security review     |
 | **DTOs/Models**      | DynamoDB Toolbox entities with types  | MUST        | Code review         |
 | **Code Formatting**  | Prettier + ESLint for consistency     | MUST        | Pre-commit hooks    |
-| **Rate Limiting**    | express-rate-limit middleware         | MUST        | DDoS protection     |
-| **Security Headers** | Helmet.js for HTTP security headers   | MUST        | Automated scanning  |
+| **Rate Limiting**    | API Gateway/WAF throttling            | MUST        | DDoS protection     |
+| **Security Headers** | Enforce standard HTTP security headers| MUST        | Automated scanning  |
 
 ### Error Handling Example
 
