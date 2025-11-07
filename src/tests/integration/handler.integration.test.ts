@@ -1,29 +1,19 @@
-import { describe, it, expect, vi } from 'vitest';
-vi.mock(
-  '../../features/users/usersService',
-  () => import('../../__mocks__/@/features/users/usersService')
-);
+import { describe, it, expect } from 'vitest';
 import { handler } from '../../index';
 import { makeEvent } from '../fixtures/apiGateway';
-import { expectJson } from '../utils/http';
 
 describe('HTTP integration: handler (middy + router)', () => {
-  it('GET /users returns 200 with JSON', async () => {
-    const event = makeEvent({ path: '/users', method: 'GET' });
+  it('GET /docs returns 200 with HTML and security headers', async () => {
+    const event = makeEvent({ path: '/docs', method: 'GET' });
     const res = await handler(event, {} as any);
-    const body = expectJson(res, 200);
-    expect(body).toMatchObject({ domain: 'users', method: 'GET' });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers?.['Content-Type']).toBe('text/html');
+    expect(res.headers?.['Content-Security-Policy']).toBeDefined();
   });
 
-  it('POST /users (JSON) returns 201 and parses body', async () => {
-    const event = makeEvent({
-      path: '/users',
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: { firstName: 'Alice', lastName: 'Doe' },
-    });
-    const res = await handler(event as any, {} as any);
-    const body = expectJson(res, 201);
-    expect(body).toMatchObject({ domain: 'users', method: 'POST' });
+  it('GET unknown route returns 404 JSON', async () => {
+    const event = makeEvent({ path: '/unknown', method: 'GET' });
+    const res = await handler(event, {} as any);
+    expect(res.statusCode).toBe(404);
   });
 });

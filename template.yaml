@@ -11,17 +11,6 @@ Parameters:
       - dev
       - staging
       - prod
-  UsersTableName:
-    Type: String
-    Description: Name of the DynamoDB table used to store users
-    Default: UsersTable
-  EnablePITR:
-    Type: String
-    Description: Enable DynamoDB Point-in-Time Recovery (overrides env defaults)
-    AllowedValues:
-      - 'true'
-      - 'false'
-    Default: 'false'
 
 Globals:
   Function:
@@ -32,17 +21,13 @@ Globals:
     Tracing: Active
     Environment:
       Variables:
-        USERS_TABLE: !Sub '${UsersTableName}-${Environment}'
         NODE_ENV: !Ref Environment
         LOG_LEVEL: !If [IsProd, 'warn', 'info']
 
 Conditions:
   IsProd: !Equals [!Ref Environment, 'prod']
   IsStaging: !Equals [!Ref Environment, 'staging']
-  PITREnabled: !Or
-    - !Equals [!Ref EnablePITR, 'true']
-    - !Equals [!Ref Environment, 'prod']
-    - !Equals [!Ref Environment, 'staging']
+  # no PITR condition without a default table
 
 Resources:
   HttpApi:
@@ -69,76 +54,12 @@ Resources:
         ExposeHeaders:
           - X-Correlation-Id
 
-  UsersDynamoTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: !Sub '${UsersTableName}-${Environment}'
-      BillingMode: PAY_PER_REQUEST
-      PointInTimeRecoverySpecification: !If
-        - PITREnabled
-        - PointInTimeRecoveryEnabled: true
-        - !Ref AWS::NoValue
-      AttributeDefinitions:
-        - AttributeName: id
-          AttributeType: S
-        - AttributeName: entityType
-          AttributeType: S
-        - AttributeName: createdAt
-          AttributeType: S
-      KeySchema:
-        - AttributeName: id
-          KeyType: HASH
-      GlobalSecondaryIndexes:
-        - IndexName: ByEntityType
-          KeySchema:
-            - AttributeName: entityType
-              KeyType: HASH
-            - AttributeName: createdAt
-              KeyType: RANGE
-          Projection:
-            ProjectionType: ALL
 
   CogiraFunction:
     Type: AWS::Serverless::Function
     Properties:
       Handler: index.handler
       Events:
-        GetUsers:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref HttpApi
-            Path: /api/v1/users
-            Method: GET
-        PostUsers:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref HttpApi
-            Path: /api/v1/users
-            Method: POST
-        GetUserById:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref HttpApi
-            Path: /api/v1/users/{id}
-            Method: GET
-        PutUserById:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref HttpApi
-            Path: /api/v1/users/{id}
-            Method: PUT
-        PatchUserById:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref HttpApi
-            Path: /api/v1/users/{id}
-            Method: PATCH
-        DeleteUserById:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref HttpApi
-            Path: /api/v1/users/{id}
-            Method: DELETE
         GetDocs:
           Type: HttpApi
           Properties:
@@ -151,9 +72,7 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /api/v1/docs/{proxy+}
             Method: GET
-      Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Sub '${UsersTableName}-${Environment}'
+      Policies: []
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
@@ -176,7 +95,7 @@ Outputs:
     Description: Example endpoint for users routes
     Value:
       Fn::Sub:
-        - '${ApiEndpoint}/api/v1/users'
+        - '${ApiEndpoint}/api/v1/docs'
         - { ApiEndpoint: !GetAtt HttpApi.ApiEndpoint }
   FunctionArn:
     Description: Lambda function ARN

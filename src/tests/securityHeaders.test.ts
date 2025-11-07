@@ -1,14 +1,10 @@
-import { describe, it, expect, vi } from 'vitest';
-vi.mock(
-  '../features/users/usersService',
-  () => import('../__mocks__/@/features/users/usersService')
-);
+import { describe, it, expect } from 'vitest';
 import { handler } from '../index';
 import { makeEvent } from './fixtures/apiGateway';
 
 describe('Security Headers', () => {
   it('applies security headers to all responses', async () => {
-    const event = makeEvent({ path: '/users', method: 'GET' });
+    const event = makeEvent({ path: '/docs', method: 'GET' });
     const res = await handler(event, {} as any);
 
     expect(res.headers).toBeDefined();

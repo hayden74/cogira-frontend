@@ -3,11 +3,11 @@ import { APIGatewayProxyEventV2 } from 'aws-lambda';
 export type AppRequest = {
   method: string;
   /**
-   * Normalized path with API base prefix stripped (e.g., '/users', '/docs').
+   * Normalized path with API base prefix stripped (e.g., '/example', '/docs').
    */
   path: string;
   /**
-   * Raw path as received from API Gateway (e.g., '/api/v1/users').
+   * Raw path as received from API Gateway (e.g., '/api/v1/example').
    */
   rawPath: string;
   /**

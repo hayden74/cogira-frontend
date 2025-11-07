@@ -7,8 +7,8 @@ const createMockEvent = (
   origin?: string
 ): APIGatewayProxyEventV2 => ({
   version: '2.0',
-  routeKey: 'GET /users',
-  rawPath: '/users',
+  routeKey: 'GET /example',
+  rawPath: '/example',
   rawQueryString: '',
   headers: origin ? { origin } : {},
   requestContext: {
@@ -18,13 +18,13 @@ const createMockEvent = (
     domainPrefix: 'api',
     http: {
       method,
-      path: '/users',
+      path: '/example',
       protocol: 'HTTP/1.1',
       sourceIp: '127.0.0.1',
       userAgent: 'test-agent',
     },
     requestId: 'request-id',
-    routeKey: 'GET /users',
+    routeKey: 'GET /example',
     stage: 'test',
     time: '01/Jan/2024:00:00:00 +0000',
     timeEpoch: 1704067200,

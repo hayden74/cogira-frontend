@@ -9,7 +9,7 @@ type MakeEventArgs = {
 };
 
 export function makeEvent({
-  path = '/users',
+  path = '/docs',
   method = 'GET',
   headers = {},
   body,

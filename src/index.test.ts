@@ -1,16 +1,9 @@
-import { describe, it, expect, vi } from 'vitest';
-vi.mock('./features/users/usersService');
+import { describe, it, expect } from 'vitest';
 import { baseHandler } from './index';
 import { makeEvent } from './tests/fixtures/apiGateway';
 import { expectJson } from './tests/utils/http';
 
 describe('router: delegation', () => {
-  it('delegates to users domain', async () => {
-    const res = await baseHandler(makeEvent({ path: '/users', method: 'GET' }));
-    const body = expectJson(res, 200);
-    expect(body.domain).toBe('users');
-  });
-
   it('serves docs landing page', async () => {
     const res = await baseHandler(makeEvent({ path: '/docs', method: 'GET' }));
     expect(res.statusCode).toBe(200);
@@ -37,11 +30,9 @@ describe('router: delegation', () => {
 
 describe('router: OPTIONS preflight (handled by API Gateway)', () => {
   it('Lambda does not handle OPTIONS (would be handled by API)', async () => {
-    const res = await baseHandler(
-      makeEvent({ path: '/users', method: 'OPTIONS' })
-    );
+    const res = await baseHandler(makeEvent({ path: '/unknown', method: 'OPTIONS' }));
     // If invoked directly, it falls through to 404 in Lambda
     const body = expectJson(res, 404);
-    expect(body.message).toBe('Not Found');
+    expect(body.error).toBe("Domain 'unknown' not found");
   });
 });

@@ -1,5 +1,3 @@
-import { usersDoc } from './users';
-
 type DocFragment = {
   paths?: Record<string, unknown>;
   components?: {
@@ -24,7 +22,7 @@ const mergeDocs = (fragments: DocFragment[]) => {
   return { paths, schemas };
 };
 
-const merged = mergeDocs([usersDoc]);
+const merged = mergeDocs([]);
 
 export const openApiDocument = {
   openapi: '3.0.3',

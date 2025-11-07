@@ -9,8 +9,8 @@ const createMockEvent = (
   isBase64?: boolean
 ): APIGatewayProxyEventV2 => ({
   version: '2.0',
-  routeKey: 'POST /users',
-  rawPath: '/users',
+  routeKey: 'POST /example',
+  rawPath: '/example',
   rawQueryString: '',
   headers: contentLength ? { 'content-length': contentLength } : {},
   body,
@@ -22,13 +22,13 @@ const createMockEvent = (
     domainPrefix: 'api',
     http: {
       method: 'POST',
-      path: '/users',
+      path: '/example',
       protocol: 'HTTP/1.1',
       sourceIp: '127.0.0.1',
       userAgent: 'test-agent',
     },
     requestId: 'request-id',
-    routeKey: 'POST /users',
+    routeKey: 'POST /example',
     stage: 'test',
     time: '01/Jan/2024:00:00:00 +0000',
     timeEpoch: 1704067200,
